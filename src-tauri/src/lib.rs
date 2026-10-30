@@ -1,3 +1,6 @@
+mod agy_config;
+#[cfg(all(test, unix))]
+mod agy_smoke_tests;
 mod app_config;
 mod app_store;
 mod auto_launch;
@@ -14,6 +17,7 @@ mod compat;
 mod config;
 mod database;
 mod deeplink;
+mod dsh_config;
 mod error;
 mod gemini_config;
 mod gemini_mcp;
@@ -23,6 +27,8 @@ pub mod headless;
 pub mod hermes_config;
 mod init_status;
 mod jsonc_document;
+mod kimi_config;
+mod kimi_session;
 #[cfg(feature = "desktop")]
 mod lightweight;
 #[cfg(not(feature = "desktop"))]
@@ -35,6 +41,7 @@ mod mcode_config;
 mod mcp;
 pub mod mode;
 mod model_capabilities;
+mod omp_config;
 mod openclaw_config;
 mod opencode_config;
 mod panic_hook;
@@ -54,6 +61,9 @@ mod tray;
 #[cfg(not(feature = "desktop"))]
 #[path = "tray_headless.rs"]
 mod tray;
+#[cfg(all(target_os = "windows", feature = "desktop"))]
+mod tray_compat;
+mod tray_logic;
 #[cfg(feature = "desktop")]
 mod tray_panel;
 #[cfg(not(feature = "desktop"))]
@@ -84,7 +94,7 @@ pub use mcp::{
 pub use prompt::Prompt;
 pub use provider::{Provider, ProviderMeta};
 pub use services::{
-    profile::{ProfilePayload, ProfileScope, ProfileService},
+    profile::{ProfilePayload, ProfileScope, ProfileService, NO_ACTIVE_PROMPT},
     provider::{reapply_current_codex_official_live, EditorSave, EditorView},
     skill::{migrate_skills_to_ssot, ImportSkillSelection},
     ConfigService, EndpointLatency, McpService, PromptService, ProviderService, ProxyService,
@@ -353,8 +363,8 @@ async fn update_tray_menu(
     app: crate::compat::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
-    if !tray_panel::USES_NATIVE_MENU {
-        // 不挂原生菜单的平台：更新图标状态，通知开着的面板重新取数据。
+    if !tray_panel::uses_native_menu() {
+        // 用托盘面板、不挂原生菜单：更新图标状态，通知开着的面板重新取数据。
         tray::refresh_tray_menu(&app);
         return Ok(app.tray_by_id(tray::TRAY_ID).is_some());
     }
@@ -379,6 +389,45 @@ async fn update_tray_menu(
 #[tauri::command]
 async fn update_tray_menu(_app: crate::compat::AppHandle) -> Result<bool, String> {
     Ok(false)
+}
+
+/// 本进程打开文件描述符的软上限目标。macOS 的 `setrlimit` 不接受超过 `OPEN_MAX`（10240）的值。
+#[cfg(unix)]
+const OPEN_FILE_SOFT_LIMIT_TARGET: libc::rlim_t = 10240;
+
+/// 从 Finder / 登录项启动的 macOS 应用继承 launchd 的软上限，默认只有 256 个文件描述符。
+/// 本地路由并发时客户端连接、上游连接、日志、数据库和配置文件都要占用描述符，突发请求下
+/// accept、上游连接和打开数据库会一起报 EMFILE（Too many open files）。启动时把软上限
+/// 提到硬上限（封顶 10240），硬上限更低或已经足够时不动。
+#[cfg(unix)]
+pub(crate) fn raise_open_file_limit() {
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    // SAFETY: 传入的是有效的 rlimit 指针，调用只读写这个结构体。
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) } != 0 {
+        log::warn!(
+            "读取文件描述符上限失败: {}",
+            std::io::Error::last_os_error()
+        );
+        return;
+    }
+    let target = OPEN_FILE_SOFT_LIMIT_TARGET.min(limit.rlim_max);
+    if limit.rlim_cur >= target {
+        return;
+    }
+    let previous = limit.rlim_cur;
+    limit.rlim_cur = target;
+    // SAFETY: 同上；软上限不超过硬上限，不需要特权。
+    if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) } != 0 {
+        log::warn!(
+            "提高文件描述符上限失败（当前 {previous}）: {}",
+            std::io::Error::last_os_error()
+        );
+    } else {
+        log::info!("文件描述符软上限 {previous} → {target}");
+    }
 }
 
 #[cfg(feature = "desktop")]
@@ -1017,6 +1066,30 @@ mod tests {
         classify_exit_request, error_for_log, redact_url_for_log, redact_url_for_log_with_secrets,
         redact_url_origin_for_log, runtime_log_level_allows, ExitRequestAction,
     };
+
+    #[cfg(unix)]
+    #[test]
+    fn raise_open_file_limit_lifts_soft_limit_to_target_or_hard_limit() {
+        fn current() -> libc::rlimit {
+            let mut limit = libc::rlimit {
+                rlim_cur: 0,
+                rlim_max: 0,
+            };
+            assert_eq!(
+                unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) },
+                0
+            );
+            limit
+        }
+
+        let before = current();
+        super::raise_open_file_limit();
+        let after = current();
+        let expected = super::OPEN_FILE_SOFT_LIMIT_TARGET.min(after.rlim_max);
+        assert!(after.rlim_cur >= expected);
+        assert!(after.rlim_cur >= before.rlim_cur);
+        assert_eq!(after.rlim_max, before.rlim_max);
+    }
 
     #[test]
     fn log_error_drops_toml_source_lines_but_keeps_position() {
