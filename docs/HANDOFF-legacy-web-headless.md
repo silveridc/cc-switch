@@ -1553,3 +1553,62 @@ git -c http.proxy=http://127.0.0.1:7891 fetch https://github.com/farion1231/cc-s
 
 
 
+
+## 18. 合上游 v4.0.22（2026-10-30，用户："合一下吧"）
+
+### 18.1 怎么合的
+
+分支 `zhaoyj7/merge-upstream-4.0.22-20261030`（**没动 main**），两步提交：
+
+| 提交 | 内容 |
+|---|---|
+| `2dddd7b9` | 先把 §13–§16 的未提交改动落成一个检查点（28 个文件，1315+/423-） |
+| `b0ff3759` | `merge: upstream v4.0.22 (7569b27a)` —— 590 个文件，74082+/8740- |
+| `bc4d82b6` | `fix(merge)` 适配层：无头/兼容层要跟着改的部分（见 18.3） |
+
+合并的是 `refs/upstream/main`（`7569b27a`，比 `v4.0.22` tag 多 8 个提交），基线是共同祖先 `77c6dc79`。
+
+### 18.2 冲突只有 4 个文件，但"文本无冲突"不等于"能编"
+
+| 文件 | 处理 |
+|---|---|
+| `src-tauri/Cargo.toml` | 只差 tokio features：两边并集（`signal` + `process`） |
+| `src-tauri/Cargo.lock` | 取上游那份，之后的 `cargo build` 自己补齐 |
+| `src-tauri/src/commands/provider.rs` | 上游把 `update_providers_sort_order` 改成 `async`，我们换了 `compat::AppHandle`：取两者并集 |
+| `src-tauri/src/lib.rs` | 我们的薄 runner（`.setup(crate::setup::setup_common)` + `app_invoke_handler!()`）vs 上游 1400 行内联闭包与 `generate_handler!`：**取我们的骨架**，把上游新增的模块声明（`kimi_config`/`kimi_session`/`tray_compat`）和 `raise_open_file_limit()` 补回；`tray_compat` 加 `#[cfg(all(windows, desktop))]`（它用的是裸 `tauri::AppHandle`/`tauri::Wry`） |
+
+**真正的工作量在"自动合并成功但编不过"的地方**（`bc4d82b6`）：
+
+1. **`setup.rs` 要吸收上游在启动闭包里新加的 7 处**：`raise_open_file_limit()`、`initialize_dsh_profiles`、`import_omp_providers_from_live`、轻量模式与深链接冷启动的互斥（`startup_deeplink`）、新的托盘构建写法（`tray::handle_tray_icon_event` / `native_menu_on_left_click` / `tray_compat::install`）、Kimi/Agy/Claude 三个账号管理器的注册、agy 旧启动器清理。我们原有的无头适配（日志分支、`wait_for_*_retry`、DB 版本过新直接退出）原样保留。
+2. **新增 `src-tauri/src/tray_logic.rs`**：`tray_language()` 和 `provider_needs_routing()` 被上游从"只在托盘里用"变成了设置命令 / 终端 / Kimi 登录也在用，而无头档的 `tray` 是替身模块。把这两个函数连同它们的 4 个私有依赖挪进 `tray_logic`，桌面 `tray.rs` 与 `tray_headless.rs` 都从那里转出同一份实现，行为不会分叉。
+3. **`command_handler.rs` 补齐上游新增的 27 条命令**（349 → 376，删除 0 条），逐条核对过模块路径，无重复。
+4. **3 处 `tauri::AppHandle`**（`commands/claude_account.rs`、`commands/settings.rs` 的新签名，`commands/skill.rs` 的 `open_skill_dir`）在无头档报 `expected 1 generic argument`——tauri 的 `AppHandle<R>` 默认参数来自 `#[default_runtime(Wry)]`，只有开 `wry` 特性时才存在。前两处改成 `crate::compat::AppHandle`；`open_skill_dir` 与 `open_cc_switch_skills_dir` 一样改成桌面专属命令，并在 `headless/stubs.rs` 补同名替身。
+
+### 18.3 验证（都在合并后的树上实测）
+
+| 项 | 结果 |
+|---|---|
+| `cargo fmt --check` | 通过（合并后跑过一次 `cargo fmt`） |
+| `cargo check --no-default-features --features headless` | 通过，0 warning |
+| `cargo check`（桌面默认） | 通过 |
+| `tsc -p tsconfig.legacy.json --noEmit` / `tsc --noEmit`（v4 UI） | 都通过 |
+| `src-legacy` ↔ tag `v3.20.4` | 仍**逐字节一致**（合并没碰它） |
+| 无头 debug 二进制 + 隔离 home | `{"version":"4.0.22","homeDir":"D:\projects\ccs\.ci-sandbox\io-home"}` |
+| `io-e2e` | **11/11**（导出 30,644 B，往返成功，垃圾文件被拒） |
+| `links-e2e` | **3/3**（关于页与 `open_external` 都指向 fork） |
+| `browser-e2e` | **16/16**（21 次 invoke 全成功、SSE 两帧、倍率往返、定价面板文案） |
+
+**没跑的**：`cargo test`（全量 3700+ 个用例，合并后没跑）；`release.yml` 的桌面打包。要推之前建议补跑一次 `cargo test`。
+
+### 18.4 合并后的形态
+
+- 版本号三处都是 `4.0.22`（`package.json` / `tauri.conf.json` / `Cargo.toml`），`src-tauri/Cargo.lock` 也已是 4.0.22。
+- 我们 fork 的标识仍在：`silveridc` 在 4 个 README 各 4 处、`Cargo.toml:7`、`CODEOWNERS`、`FUNDING.yml` 都保留；`.github/workflows/build-artifacts.yml` 也在。
+- 新增上游文件：`docs/release-notes/v4.0.16…v4.0.22`、`.github/workflows/schema-version.yml`（`pull_request_target` 上自动关掉改 `SCHEMA_VERSION` 的 PR，上游维护策略，留着无害）。
+
+### 18.5 风险与后续（都要知道）
+
+1. **DB v23 → v24**：上游加了 MCP/Skills 的 DeepSeek Harness 开关列。升级自动备份，但**退回旧二进制会打不开**。14515 现在是 v23 的库，装了合并后的二进制首次启动会迁移。
+2. **`release.yml` 新增了 MSI 守卫**：要求 MSI 的 Property 表里有 `REBOOT=ReallySuppress`，否则构建失败（上游 #8534）。我们那条 `build-artifacts.yml` 不受影响；但如果哪天用 `release.yml` 打旧 UI 的 MSI，得先确认 `tauri.legacy.conf.json` 的 bundle 设置满足这条。
+3. **EL9 单二进制与 14515 服务还是合并前的产物**（`1377a492…`，v4.0.15 后端）。要跟上的话得重编一次（约 40 分钟，`systemd-run` 那个流程，见 §16.2）再 `install` + `systemctl restart`。
+4. 合并分支**没有推送**，也没动 `main`（`main` 仍是 `b7f1e6b1`）。
