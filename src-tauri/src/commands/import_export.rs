@@ -49,22 +49,32 @@ pub async fn export_config_to_file(
     .map_err(|e: AppError| e.to_string())
 }
 
-/// 从 SQL 备份导入数据库
-#[tauri::command]
-pub async fn import_config_from_file(
-    #[allow(non_snake_case)] filePath: String,
-    state: State<'_, AppState>,
-) -> Result<Value, String> {
+/// 导入数据的来源：桌面端拿到的是本机路径，浏览器端只能把 SQL 文本上传上来。
+enum SqlSource {
+    Path(PathBuf),
+    Text(String),
+}
+
+impl SqlSource {
+    fn import(&self, db: &Database) -> Result<String, AppError> {
+        match self {
+            Self::Path(path) => db.import_sql(path),
+            // 与 import_sql 读文件后的处理保持一致：去掉 UTF-8 BOM
+            Self::Text(text) => db.import_sql_string(text.trim_start_matches('\u{feff}')),
+        }
+    }
+}
+
+async fn run_import(source: SqlSource, state: State<'_, AppState>) -> Result<Value, String> {
     let app_state_for_sync = state.inner().clone();
     let db = app_state_for_sync.db.clone();
     run_with_database_restore_lock(move || {
         tauri::async_runtime::spawn_blocking(move || {
-            let path_buf = PathBuf::from(&filePath);
             let backup_id = {
                 // SQL restore replaces the `skills` table. Exclude local Skill
                 // mutations while the database image is being swapped.
                 let _skill_state_guard = skill_state_write_guard();
-                db.import_sql(&path_buf)?
+                source.import(&db)?
             };
             let warning =
                 post_sync_warning_from_result(Ok(run_post_import_sync(&app_state_for_sync)));
@@ -77,6 +87,41 @@ pub async fn import_config_from_file(
     .await
     .map_err(|e| format!("导入配置失败: {e}"))?
     .map_err(|e: AppError| e.to_string())
+}
+
+/// 导出数据库为 SQL 文本：浏览器里没有可写的服务器路径，由页面自己落成下载文件
+#[tauri::command]
+pub async fn export_config_sql(state: State<'_, AppState>) -> Result<Value, String> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let sql = db.export_sql_string()?;
+        Ok::<_, AppError>(json!({
+            "success": true,
+            "message": "SQL exported successfully",
+            "sql": sql
+        }))
+    })
+    .await
+    .map_err(|e| format!("导出配置失败: {e}"))?
+    .map_err(|e: AppError| e.to_string())
+}
+
+/// 从 SQL 文本导入数据库
+#[tauri::command]
+pub async fn import_config_sql(
+    content: String,
+    state: State<'_, AppState>,
+) -> Result<Value, String> {
+    run_import(SqlSource::Text(content), state).await
+}
+
+/// 从 SQL 备份导入数据库
+#[tauri::command]
+pub async fn import_config_from_file(
+    #[allow(non_snake_case)] filePath: String,
+    state: State<'_, AppState>,
+) -> Result<Value, String> {
+    run_import(SqlSource::Path(PathBuf::from(filePath)), state).await
 }
 
 #[tauri::command]

@@ -1,0 +1,11 @@
+{
+  "build": {
+    "frontendDist": "../dist-legacy-desktop",
+    "devUrl": "http://localhost:3001",
+    "beforeDevCommand": "pnpm run dev:legacy",
+    "beforeBuildCommand": "pnpm run build:legacy:desktop"
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false
+  }
+}

@@ -1,6 +1,8 @@
 import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "tailwindcss";
+import autoprefixer from "autoprefixer";
 
 /**
  * 旧版（v3.20.4）前端的构建配置。
@@ -53,7 +55,17 @@ export default defineConfig(({ mode }) => {
       },
     },
     css: {
-      postcss: "./postcss.legacy.config.cjs",
+      // 必须内联：`css.postcss` 传字符串时 vite 当作"去这个目录找配置"，不是文件路径，
+      // 结果会退回根目录 postcss.config.cjs → tailwind 扫的是 ./src/**（新 UI），
+      // 旧 UI 独有的工具类（bg-orange-500、data-[state=unchecked]:bg-gray-200 …）全部不生成。
+      postcss: {
+        plugins: [
+          tailwindcss({
+            config: path.resolve(__dirname, "tailwind.legacy.config.cjs"),
+          }),
+          autoprefixer(),
+        ],
+      },
     },
     server: {
       port: 3001,

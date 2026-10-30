@@ -27,6 +27,13 @@ echo "== index md5 对比 =="
 curl -s -m 5 "http://127.0.0.1:$PORT/" | md5sum
 md5sum /mnt/d/projects/ccs/dist-legacy/index.html
 
+# §13.7 的回归守卫：旧 UI 的 CSS 必须由 tailwind.legacy.config.cjs 扫 src-legacy 生成，
+# 内嵌产物里少了 .bg-orange-500 就说明构建配置又退回根目录那份 tailwind.config.cjs 了。
+echo "== 内嵌 CSS 里的 .bg-orange-500（0 = §13.7 那个 bug 复发）=="
+CSS=$(curl -s -m 5 "http://127.0.0.1:$PORT/" | grep -o 'assets/index-[^"]*\.css' | head -1)
+echo "CSS=$CSS"
+curl -s -m 8 "http://127.0.0.1:$PORT/$CSS" | grep -c -F '.bg-orange-500{'
+
 echo "== get_stream_check_config（v3 移植命令）=="
 invoke '{"cmd":"get_stream_check_config","args":{}}'; echo
 echo "== save_stream_check_config 往返 =="

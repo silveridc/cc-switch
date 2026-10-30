@@ -4,9 +4,12 @@ version = "4.0.15"
 description = "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
 authors = ["Jason Young"]
 license = "MIT"
-repository = "https://github.com/farion1231/cc-switch"
+repository = "https://github.com/silveridc/cc-switch"
 edition = "2021"
 rust-version = "1.85.0"
+# 有第二个 bin（无头版）就必须指名主二进制：tauri CLI 会把每个"非主二进制"都塞进安装包
+# （文件不存在时 light.exe 直接 LGHT0103），cargo 也会让 `cargo run` 报歧义。
+default-run = "cc-switch"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,13 +23,14 @@ doctest = false
 # headless = 无头服务模式：只跑 tauri::test 的 MockRuntime，不需要显示器。
 #            store 插件对 Runtime 泛型，两种构建都保留"数据目录覆盖"能力。
 default = ["desktop"]
+# 下面的特性名必须在上游锁定的 tauri（2.10.x）里存在：写 `tauri/dbus`（2.11 才有）会逼
+# cargo 把整个 tauri 栈升到 2.12，而 @tauri-apps/api 还是 2.10.1，tauri CLI 会拒绝构建。
 desktop = [
     "tauri/wry",
     "tauri/compression",
     "tauri/common-controls-v6",
     "tauri/dynamic-acl",
     "tauri/x11",
-    "tauri/dbus",
     "tauri/tray-icon",
     "tauri/image-png",
     "dep:webkit2gtk",
@@ -50,7 +54,8 @@ required-features = ["desktop"]
 
 [[bin]]
 name = "cc-switch-server"
-path = "src/bin/server.rs"
+# 故意不放 src/bin/ 下：tauri CLI 会扫描那个目录，把扫到的文件当"额外待打包二进制"写进安装包。
+path = "src/headless_main.rs"
 required-features = ["headless"]
 
 [build-dependencies]

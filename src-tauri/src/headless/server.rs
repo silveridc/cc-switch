@@ -178,7 +178,7 @@ fn dispatch(
     let response = tauri::test::get_ipc_response(
         dispatcher,
         tauri::webview::InvokeRequest {
-            cmd: cmd.into(),
+            cmd,
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
             url: if cfg!(target_os = "windows") {

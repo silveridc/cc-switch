@@ -3,24 +3,43 @@
 > 写给下一位接手的 AI/工程师。读完这一份就能接着干，不需要翻历史对话。
 > 所有"已验证"的结论都标了复现命令；标"未验证/推断"的不要当事实用。
 
-**当前状态（2026-10-21 收尾；2026-10-22 追加 §11 只读评审 + §12 本地干净克隆实测与新工作流）**：
+**当前状态（2026-10-21 收尾；2026-10-22 追加 §11 只读评审 + §12 本地干净克隆实测与新工作流 + §13 桌面版旧 UI；2026-10-24 追加 §13.9 无头二进制重编与 CLI 侧复验；2026-10-25 追加 §13.10 EL9 产物重编 + §13.11 本机 WSL 实部署 + §14 浏览器导入导出 + §15 链接归属 + §16 格式化与 EL9 二次重编部署）**：
 - 旧前端已在真浏览器里跑通：E2E **16/16**（`stream_check.rs:48` 改动后重编二进制、重启服务又跑了两遍，§3.5）。
 - Rust 全量单测 **3763 通过 / 0 失败 / 11 ignored**（要带 `NO_PROXY=127.0.0.1,localhost`，之前那两个"失败"
   是本机 Windows 系统代理造成的假失败，根因与对照实验见 §3.5 备注）。
 - 6 条 v3 命令移植完成，Windows + Linux（原生二进制 / 容器）**双侧都有 HTTP 实测**；成本倍率已按用户拍板
   处理完（**只补命令 + 加说明**，§6.1），不再有等功能决策。
 - 部署产物两条路都已重编复验（见下方 ✅）。`src-legacy/` 仍与 tag `v3.20.4` 逐字节一致（§2 的核验命令）。
+  **但 §13.7 之后这条要打折**：CSS 构建配置修好了，EL9 二进制 / 容器镜像 / 旧 UI 的 MSI 都还是修复前产物，得重编（§13.7 影响面）。
+  **Windows 侧的无头单二进制（§13.9）与 EL9 原生单二进制（§13.10）已按修复后重编并复验**；还欠容器镜像与 MSI。
 - 本机现场已清理（§6.3），只剩 `.e2e-home` 与在跑的 14515。
 - **改动集已提交并推送**（`0912b6c1`，578 个文件），push 触发的 `ci.yml` **六个 job 全绿**（§12.5）。
   新增的 `build-artifacts.yml` 只注册未运行，等手动 dispatch。
 
-**剩下**：① 一件功能活 —— 桌面版 `tauri.conf.json` 仍指向 v4 UI（§6.2）；② §11 里那 5 条行为决策 +
-仓库卫生的 ⑩⑪，仍等你拍板（改动集本身已提交推送，§10 第 6 条）。
+**剩下**：① §11 里那 5 条行为决策 + 仓库卫生的 ⑩⑪，仍等你拍板；② **§13 这批改动还没提交**
+（`Cargo.toml`/`Cargo.lock`/`package.json`/`tauri.legacy.conf.json`/`tools/desktop-cdp-check.mjs`/
+`src/bin/server.rs → src/headless_main.rs` 改名/本文档），推送与否等你说；
+③ §13.6 末尾那条"两套 UI 的 MSI 同名"要不要区分，是交付形态决策，等你拍板；
+④ 要不要给 `ci.yml` 补一条 **headless 特性的 clippy**（这次就是它抓不到 `headless/server.rs:181` 的空转换，§13.6）——
+动现有 CI 门，也等你拍板；
+⑤ **§13.8 会话管理页必崩**（v4 有 blocks 就不下发 `content`，旧 UI 直接 `undefined.slice`）选 ①/②/③，
+推荐 ①（传输层补字段，顺带修掉 web 版和无头版页面的同一个崩溃）——**"顺带修掉"这句现在是实测不是推断了**，
+web/无头侧同样崩，见 §13.9 最后一条；
+⑥ §13.7 修完 CSS 之后，**EL9 单二进制 / 容器镜像 / 旧 UI 的 MSI 全是修复前的产物**，要不要现在重编三连
+→ **Windows 无头 release（§13.9）与 EL9 原生单二进制（§13.10，就是要丢服务器的那个文件）都已重编并复验**；
+剩下的只有容器镜像 `:dev`、旧 UI 的 MSI、桌面 release `target/release/cc-switch.exe`。
+（`src-legacy/tailwind.legacy.config.cjs` 那个已废弃的 `postcss.legacy.config.cjs` 删不删也算在 ⑥ 里。）
+（功能活至此**全部做完**：桌面版旧 UI 已落地并真机验证，见 §13。）
 （`deploy/Dockerfile.old-glibc` 这个 zig 废案**已按用户指示删除**，连配套的 `tools/wsl-oldglibc-build.sh` 一起。）
 > ✅ 部署产物**两条路都已在 2026-10-21 重编并复验**：EL9 原生单二进制（§5.6，sha256 `a6d2346d…`）
 > 与容器镜像 `localhost/cc-switch-server:dev`（id `03e4b1ffea13`）。两者的页面资源与本地
 > `pnpm build:legacy:web` 产物**逐字节一致**（`assets/index-0hufZJV7.js` md5 `36d6ce687c924c223f220fa06fcb8d38`），
 > 倍率两条命令在 Linux 侧也已实测。发布前想再确认一遍就跑 `tools/wsl-el9-copy-check.sh`。
+> **2026-10-24 更新**：EL9 原生单二进制又重编了一次（§13.10），sha256 以那里的 `11931503…` 为准，
+> `a6d2346d…` 是 §13.7 CSS 修复之前的产物。
+> **2026-10-25 最终（以这条为准）**：EL9 单二进制再重编并**已装进本机 WSL 的 14515 服务**（§16.2/§16.3），
+> sha256 `1377a492…`（39,044,280 B）取代 `11931503…`；这一版同时含 §14（浏览器导入导出）与 §15（链接归属），
+> 在隔离实例上跑 `io-e2e` **11/11**、`links-e2e` **3/3**、`browser-e2e` **16/16**。旧二进制留了备份，见 §16.3。
 
 ---
 
@@ -307,7 +326,13 @@ invoke : get_stream_check_config -> {"timeoutSecs":8,"maxRetries":1,"degradedThr
   但原文案「实际成本 = 基础成本 × 倍率」「选择按请求模型还是返回模型进行定价匹配」是**错的**，一并改掉。
 - **没做**（用户没选走法 2，别自作主张接回去）：把倍率重新乘进 `logger.rs` / `calculator.rs`。
 
-### 6.2 桌面版仍指向 v4 UI（**等你拍板**，不是技术阻塞）
+### 6.2 桌面版仍指向 v4 UI（**已拍板并已实施，见 §13**）
+
+> **2026-10-22 更新**：用户拍板"桌面端跑旧 ui 就行了"，按本节第 1 条建议的形态落地——
+> 没有覆盖 `tauri.conf.json`，而是加了 `src-tauri/tauri.legacy.conf.json` + 三个 npm script
+> （`build:legacy:desktop` / `tauri:legacy:dev` / `tauri:legacy:build`），两套 UI 都能出包。
+> 实施过程、复验数字和真机 CDP 结果在 **§13**；本节下面 1/2/3 条保留作决策依据，不再重复维护。
+
 `src-tauri/tauri.conf.json` 的 `frontendDist: ../dist`、`devUrl: http://localhost:3000` 还是 v4 前端。
 
 **先把一条过时结论纠正掉**：早先这里写着"要让桌面版跑旧 UI，需要一个不被 alias 吞掉的真实 tauri 导入路径"——
@@ -371,7 +396,7 @@ invoke : get_stream_check_config -> {"timeoutSecs":8,"maxRetries":1,"degradedThr
 ## 7. 改动清单速查
 
 **新增（未跟踪）**：`.dockerignore`、`deploy/`、`dist-legacy/`（**2026-10-22 起改为 ignore，不入库**，见 §12.4）、`postcss.legacy.config.cjs`、`tailwind.legacy.config.cjs`、`tsconfig.legacy.json`、`vite.legacy.config.ts`、`src-legacy/`、`web/`、`tools/`、`.github/workflows/build-artifacts.yml`、
-`src-tauri/src/bin/`、`src-tauri/src/command_handler.rs`、`src-tauri/src/compat.rs`、`src-tauri/src/headless/`、`src-tauri/src/lightweight_headless.rs`、`src-tauri/src/setup.rs`、`src-tauri/src/tray_headless.rs`、`src-tauri/src/tray_panel_headless.rs`
+`src-tauri/src/headless_main.rs`（无头 bin 入口，**2026-10-22 从 `src-tauri/src/bin/server.rs` 改名过来，原因见 §13.6**）、`src-tauri/src/command_handler.rs`、`src-tauri/src/compat.rs`、`src-tauri/src/headless/`、`src-tauri/src/lightweight_headless.rs`、`src-tauri/src/setup.rs`、`src-tauri/src/tray_headless.rs`、`src-tauri/src/tray_panel_headless.rs`
 
 **修改**：`package.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`src-tauri/build.rs`、`src-tauri/src/lib.rs`，以及 `src-tauri/src/commands/*`、`services/*`、`proxy/*`、`database/dao/settings.rs` 等一批（完整列表 `git status --porcelain`）。
 
@@ -414,6 +439,15 @@ invoke : get_stream_check_config -> {"timeoutSecs":8,"maxRetries":1,"degradedThr
   `.github/workflows/build-artifacts.yml`（`workflow_dispatch` 五选一：all / dist-legacy / headless-el9 / container / desktop）。
 - `.gitignore`：补 `dist-legacy/`、`dist-legacy-desktop/`、`.ci-sandbox/`、`.e2e-home/` 与 `tools/` 下的一次性证据（§12.4）。
 
+**2026-10-22 增量（桌面版跑旧 UI 落地，完整记录在 §13；这一批**未提交**）**：
+- 新增 `src-tauri/tauri.legacy.conf.json`（只覆盖 `build.*` 与 `bundle.createUpdaterArtifacts:false`，两套 UI 并存谁也没被覆盖）。
+- `package.json` +3 个 script：`build:legacy:desktop`、`tauri:legacy:dev`、`tauri:legacy:build`。
+- `src-tauri/Cargo.toml`：删掉 `desktop` 特性里不存在的 `tauri/dbus`（§13.2，这是 §11.1 ① 的真身）；
+  加 `[package] default-run = "cc-switch"`；无头 bin 入口 `src/bin/server.rs` → `src/headless_main.rs`（后两条见 §13.6）。
+- `src-tauri/Cargo.lock`：由 `cargo` 自己重新解析回 **tauri 2.10.3**（不是手改），与上游的差量从 485 增/189 删缩到 132 增/15 删（§13.2）。
+- 新增 `tools/desktop-cdp-check.mjs`：挂到 WebView2 的 CDP 端口上，对桌面旧 UI 做启动页断言 + 命令级调用（§13.4，零依赖）。
+- `src-tauri/src/headless/server.rs:181`：`cmd: cmd.into()` → `cmd,`（空转换，headless 特性下的 clippy 盲区，§13.6）。
+
 ## 8. 复现命令
 
 ```bat
@@ -432,6 +466,14 @@ node tools/browser-e2e.mjs
 
 # 旧 UI 重新构建（debug 版无头服务直接读盘，改完文案不用重编二进制）
 pnpm build:legacy:web && pnpm typecheck:legacy
+
+# 桌面版跑旧 UI（§13）：先出 debug 单文件，再起进程做 CDP 断言
+pnpm tauri build --config src-tauri/tauri.legacy.conf.json --debug --no-bundle
+#   起 exe 时给 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<现挑空闲端口>，
+#   数据目录用 CC_SWITCH_DATA_DIR 隔离；要和已装实例并存必须换 identifier（§13.4 末）。
+node tools/desktop-cdp-check.mjs <现挑端口>
+# 桌面安装包：Windows 侧需要 vcvars64 + MSVC 工具链；WiX 现场下载、必须给进程 HTTPS_PROXY（§13.6）
+pnpm tauri build --config src-tauri/tauri.legacy.conf.json --bundles msi
 
 # WSL 侧构建（注意 --config 清空 proxy；target 目录 /root/ccs-target）
 MSYS_NO_PATHCONV=1 wsl.exe -u root bash /mnt/d/projects/ccs/tools/wsl-build.sh
@@ -814,3 +856,700 @@ done
 `2.2.5/2.40/2.9`→`2.40`（逐数字段比较，不会被"字典序里 `2.9` 最大"骗过去——这正是这道门最容易写错的地方）。
 表里唯一暴露的洞：**`max` 为空串时 `case` 一条都不匹配 → 这道门形同不存在**（`readelf` 挂了或 grep 没命中就会静默放行）。
 已补 `[ -n "$max" ] || exit 1`（`.github/workflows/build-artifacts.yml:147`）——按 §2 的约束，守卫本身失效比误报更危险。
+
+## 13. 桌面版跑旧 UI：实施记录（2026-10-22，用户拍板"就这样做"）
+
+### 13.1 落地形态：两套 UI 并存，谁都没被覆盖
+新增 `src-tauri/tauri.legacy.conf.json`（只含 `build` + `bundle.createUpdaterArtifacts:false`），
+`tauri.conf.json` **一行没动**；`@tauri-apps/cli` 的 `-c/--config` 支持**多个** JSON/文件按顺序深合并
+（`pnpm tauri build --help` 原文："Configurations are merged in the order they are provided"），
+所以旧 UI 桌面版 = 基本配置 + 这份覆盖。三条脚本（`package.json`）：
+- `build:legacy:desktop` = `vite build --config vite.legacy.config.ts --outDir ../dist-legacy-desktop`
+- `tauri:legacy:dev` / `tauri:legacy:build` = `tauri dev|build --config src-tauri/tauri.legacy.conf.json`
+产物目录分开（`dist-legacy` = web 版、`dist-legacy-desktop` = 桌面版），因为 `vite.legacy.config.ts:38`
+的 shim 别名按 mode 开关，两种模式的 JS 不是同一份东西。
+
+`createUpdaterArtifacts` 在 legacy 配置里关掉是**刻意的**：这条流没有 minisign 私钥，开着会停在
+"A public key has been found, but no private key"（`release.yml` 那套私钥注入只服务正式发版）。
+——这句话在 §13.6 的 STEP4 里拿到了**正面实测**：base 配置（没关它）本机就在打完包之后停在这句报错上。
+
+`tauri:legacy:build` 不带 `--bundles` 时会打**全部**类型（Windows 上 msi + nsis），两种都要现场从 GitHub
+拖打包工具（WiX 41 MB / NSIS），本机直连不通就更慢；只想验打包就手动加 `--bundles msi`（§13.6 有 HTTPS_PROXY 那条）。
+
+### 13.2 桌面构建被什么挡住：`tauri/dbus`（§11.1 ① 的真身）
+第一跑 `tauri build` 直接 exit 1：
+```
+Error Found version mismatched Tauri packages. Make sure the NPM package and Rust crate versions
+are on the same major/minor releases: tauri (v2.12.4) : @tauri-apps/api (v2.10.1)
+```
+**这就是 §11.1 ① 那批 Cargo.lock 整栈升级的后果**，而且根因在我们自己的 Cargo.toml：
+`desktop` 特性里写了 `tauri/dbus`，而 `dbus` 这个特性在 tauri **2.10.3 里不存在**
+（2.10.3 的 `[features].default = wry, compression, common-controls-v6, dynamic-acl, x11`，
+`cargo metadata` 报的可用特性里没有它）。写一个不存在的特性名，cargo 的解法是**把 tauri 升到满足该特性的最新版本**，
+于是 `tauri`/`tauri-utils`/`tao`/`wry`/`muda`/`*-plugin-*` 整条栈被抬到 2.12.x，而 JS 侧仍是 2.10.1
+（我们从没动过 `package.json` 的依赖），CLI 的版本一致性检查就把构建钉死了。
+
+修法（删掉一行 + 恢复上游锁，不手改 lock）：
+```bash
+sed -i '/"tauri\/dbus",/d' src-tauri/Cargo.toml        # 唯一的实质改动
+git show 77c6dc79:src-tauri/Cargo.lock > src-tauri/Cargo.lock
+cargo metadata --format-version 1 --filter-platform x86_64-pc-windows-msvc   # 只 "Adding" 新依赖
+```
+`cargo update -p tauri --precise 2.10.3 --dry-run` 在删除前的报错也直接印证了同一条因果链
+（"package `cc-switch` depends on `tauri` with feature `dbus` but `tauri` does not have that feature"）。
+删除后两条解析路径都停在上游版本：`tauri = 2.10.3`（默认特性）与 headless（`--no-default-features
+--features headless`）都是 2.10.3；`tauri/test` 在 2.10.3 就有，无头版不受影响。
+**Cargo.lock 的 diff 从 485 增/189 删缩到 132 增/15 删**，剩下的几乎全是新增依赖（rust-embed、sha2、unicase…），
+§11.1 ① 由"要不要接受整栈升级"变成了"无需决策"。
+Cargo.toml 里补了一行注释说明特性名必须存在于锁定版本，免得下次又踩。
+
+### 13.3 复验（tauri 回到 2.10.3 之后，全部走 `tools/rust.cmd`）
+| 步骤 | 结果 |
+| --- | --- |
+| `pnpm tauri build --config … --debug --no-bundle` | **exit 0**，`Finished dev profile in 3m 01s`，产物 `src-tauri/target/debug/cc-switch.exe` |
+| `cargo check --no-default-features --features headless --lib --bin cc-switch-server` | **exit 0** |
+| `cargo clippy -- -D warnings`（与 `ci.yml` 同参数） | **exit 0**，`Finished in 1m 02s` |
+| `cargo fmt --check --all` | **exit 0** |
+| `cargo test --lib --features test-hooks` | **3763 passed / 0 failed / 11 ignored，44.64s** |
+| `pnpm build:legacy:desktop` | **exit 0**，12.30s，`index-xVfo7ZYQ.js` 4,626.87 kB（与 §6.2 早前那次同 hash） |
+> 注意 `ci.yml` 的 clippy/nextest 是在 **2.12.4** 下绿的，2.10.3 这套版本组合**CI 还没跑过**，
+> 所以 §13.3 这行本地复验是推送前的必要条件，别省。
+
+### 13.4 真机验证：`tools/desktop-cdp-check.mjs`，13/13
+`tauri build --debug` 出来的 exe 页面资源是**编译期嵌进去的**（`http://tauri.localhost/`），不依赖 dev server，
+所以可以直接双击使用。验证方法：用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<现挑端口>`
+起进程，再用 Node 连 WebView2 的 CDP（不是另起 Chrome；端口现挑的理由见 §9）。
+CDP `/json/list` 先给出一个硬证据：**页面 title = "Claude Code 供应商切换器"**，即 v3.20.4 的 `index.html`；
+`document.body.innerText` 里能读到 `Claude Official / No Routing Support / In Use` 这些旧版列表行。
+命令逐条 `__TAURI_INTERNALS__.invoke`（参数照旧 UI 的调用写）：
+`get_providers{app}`、`get_current_provider{app}`、`get_config_status{app}`、`get_settings`、
+`get_stream_check_config`、`get_default_cost_multiplier{appType}`、`get_common_config_snippet{appType}`、
+`get_claude_desktop_status` 全 **PASS**（后三条就是 §3.4 补的那批），并且
+**无未捕获异常 / 无 console.error** → 说明 dialog/process/log/updater 这些插件的 ACL 与注册都没缺
+（`capabilities/default.json` 现有权限覆盖了旧 UI 用到的窗口/对话框/进程操作）。
+两次踩坑记录：① 探针一开始传 `{}` 少参数，报的是 "missing required key app"，那是**探针的错**不是应用的错；
+② JS 里 `e && e.message ?? e` 是语法错误（`??` 不能和 `&&` 混写不加括号），会把整条 evaluate 打挂。
+- 探针跑的是**只读命令**；旧 UI 一旦点"启用/切换"会写真实的 `~/.claude/settings.json`。
+- **`CC_SWITCH_DATA_DIR` 只隔离数据库，不隔离设备级设置**（2026-10-22 实测纠正，之前这里写错了）：
+  `AppSettings::settings_path()` 走的是 `get_home_dir()/.cc-switch/settings.json`（`settings.rs:688-694`），
+  **没有**经过 `app_config_dir` 那套 override（`app_store.rs:37` 的 `CC_SWITCH_DATA_DIR` 只管 `cc-switch.db`）。
+  所以带隔离数据目录跑起来的实例，读和写的都是**你机器上那份真的 `settings.json`**：
+  实测第一次起完该文件 mtime = `10-22 22:00`，正好是那次启动的时刻（写盘入口 `save_settings_file`，`settings.rs:922`；
+  **哪条启动路径触发这次写没查，属推断**）。内容没被盖掉：`language=zh`、`currentProviderClaude=default`、
+  `enableLocalProxy=true`、`preferredTerminal=wt`、`whatsNewSeenVersion=4.0.12` 这些用户值都还在（32 个键）。
+  但**别把它当无害**：想要真隔离得连 `HOME`/`USERPROFILE` 一起改。
+- 隔离标识：与已安装实例并存要靠换 `identifier`——`tauri-plugin-single-instance` 在 Windows 上的互斥体名
+  就是 `{identifier}-sim`（`platform_impl/windows.rs:67`），不换的话第二个进程只会把**第一个**窗口叫到前台然后退出。
+  验证期用 `--config src-tauri/tauri.legacy.test.json`（一次性文件，**已删，不入库**；内容就一行
+  `{"identifier": "com.ccswitch.desktop.legacytest"}`，要复现再建一次即可）换 id，别把正式 id 的构建改掉。
+
+**复跑（2026-10-22 第二次，用户要求"再起看看"）**：先确认进程确实不在了（`Get-Process` 里没有任何
+`cc-switch`，连装好的正式版也没在跑），重起即可（`.ci-sandbox/launch-legacy-desktop.ps1`，ASCII 标签理由见 §13.6 末）：
+```powershell
+$env:CC_SWITCH_DATA_DIR = "D:\projects\ccs\.ci-sandbox\desktop-home"
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9417"   # 端口现挑，别用 9333
+$env:NO_PROXY = "127.0.0.1,localhost"
+Start-Process -FilePath "D:\projects\ccs\src-tauri\target\debug\cc-switch.exe" `
+  -WorkingDirectory "D:\projects\ccs\src-tauri" -WindowStyle Normal -PassThru
+```
+起完 `node tools/desktop-cdp-check.mjs 9417` → **13/13 通过**（同 §13.4 那张表），
+`/json/list` 的 title 仍是 `Claude Code 供应商切换器`，视口 `innerWidth×innerHeight = 1100×620`。
+
+**但用户看不到窗口，这条最值得记**："13/13 通过"**不代表窗口露出来了**，两者完全独立：
+- 证据：`.ci-sandbox/desktop-legacy.out.log` 最后一行是 `静默启动模式：主窗口已隐藏`
+  （`setup.rs:983-990`，同时 `set_skip_taskbar(true)`），而 `tauri.conf.json` 的主窗口本来就是
+  `"visible": false`，Windows 侧靠 `on_page_load` 里那句 `webview.window().show()`（`lib.rs:443-453`）——
+  那句被 `!settings.silent_startup` 挡掉了。于是页面在跑、CDP 全绿、屏幕上什么都没有。
+- 根因是**你机器上的真设置**：`~/.cc-switch/settings.json` 里 `"silentStartup": true`（配合
+  `showInTray`/`minimizeToTrayOnClose`/`launchOnStartup` 都是 true，即"开机自启 + 只待托盘"）。
+  这条设置**不受 `CC_SWITCH_DATA_DIR` 隔离**（见上一条），所以沙箱实例也照它执行。
+- 把窗口叫出来的两个办法（都验证过）：① **再启动一次同一个 exe**，第二个进程会走 single-instance 回调
+  （`lib.rs:420-436`：`set_skip_taskbar(false)` + `unminimize` + `show` + `set_focus`）然后自己退出，
+  实测 `HWND=400110 VISIBLE=True TITLE=[CC Switch] RECT=453,215,1569,874`、第二个 PID 6 秒后已消失；
+  ② Win32 硬来：`ShowWindow(SW_MINIMIZE)` → `SW_RESTORE` → 敲一次 ALT → `BringWindowToTop` + `SetForegroundWindow`，
+  之后 `GetForegroundWindow()` 才等于目标句柄（直接 `SetForegroundWindow` 会被前台锁挡掉，实测叫不动）。
+- 以后要"看得见地"跑：要么临时把 `silentStartup` 设成 false（那是改用户设置，得先问），要么照 ① 起两次。
+
+顺手点了设置页，两条新事实：
+- **旧 UI 的设置页 Tab 不吃 `el.click()`**：`document.querySelectorAll("button")[1].click()` 连发两次截图字节数完全一样
+  （43,586 = 没换页），要按 `pointerdown → mousedown → pointerup → mouseup → click` 全序列打到
+  `document.elementFromPoint(x,y)` 上才切到"通用"页（截图 41,647）。以后写 CDP 探针点这个 UI 得照这个来。
+- **"关于"页会打真网络、并且有能改机器的按钮**：本页一打开就去查新版本，实测拿到了
+  `检测到新版本：4.0.18` 和 `Claude Code 2.1.300→2.1.308`、`Codex 0.162.1→0.163.0`，
+  按钮是 `更新到 v4.0.18` / `全部升级（2）` / 每行一个 `升级`。**这些别点**：前者会走 updater 流程，
+  后者会去升用户机器上的 Claude Code / Codex CLI。这一页只截了图，没触发任何升级。
+
+### 13.5 已知遗留
+- `pnpm tauri:legacy:dev`（dev server + 3001）这条路径**没测过**，测的是 build 产物。
+- CLI 打印的 `Built application at: …\target\debug\server.exe` **不是"日志难看"，是打包真会坏**：
+  同一个 `bin_path` 既用来打印、也用来 rename/喂给 bundler，`--bundles msi` 就在这一步炸。
+  根因与修复见 §13.6（已修，桌面 MSI 与 base 配置都复验过）。
+- 桌面版的旧 UI **只做过启动页 + 命令级验证**，没逐个面板点过（§3.4 那 6 条之外的一致性仍是静态比对结论）。
+  → 2026-10-23 已经开始逐个点：CSS 静默丢失（§13.7，已修）、会话管理页必崩（§13.8，待拍板）。
+  剩下那些面板（路由 / 认证 / 高级 / 使用统计 / Skills / 提示词 / MCP）同样没点过，**默认按"可能有同类问题"看待**。
+
+### 13.6 桌面打包被"第二个 bin"打断：根因、修复、复验（2026-10-22）
+
+**症状**（两条，都在 release 编完之后才出现，所以 `Finished release profile` 是绿的别被骗）：
+1. 不带 `mainBinaryName`：`Built application at: …\target\release\server.exe` → `failed to bundle project The system cannot find the file specified. (os error 2)`
+2. 带 `mainBinaryName: "cc-switch"`：`failed to rename app binary D:\…\target\release\server.exe (os error 2)`
+（`server.exe` 这个文件从头到尾不存在；`cargo metadata` 里也只有 `cc-switch` 和 `cc-switch-server` 两个 bin。）
+
+**根因**（读了 CLI/bundler 源码，不是猜；源码从 `static.crates.io` 拉的对齐版本：`tauri-cli-2.10.1`、`tauri-bundler-2.8.1`）：
+- `tauri-cli/src/interface/rust.rs:963-1002`：候选二进制不止来自 `Cargo.toml`，还会**扫 `src-tauri/src/bin/*.rs`**，
+  文件名去后缀直接当 bin 名 → 我们那份无头入口 `src/bin/server.rs` 变成候选 `server`。
+- `tauri-cli/src/interface/rust.rs:907-913`：主二进制取 `find(|b| b.main())`，而 `main` 由
+  "bin 名 == 包名"或 `package > default-run` 决定（`:954`、`:997-1003`）——**CLI 自己的报错文案就在建议加 `default-run`**。
+- `tauri-bundler/src/bundle/windows/msi/mod.rs:919-931`：WIX 的 wxs 会为**每一个"非主二进制"**生成一个
+  `<File Source="target/release/<name>.exe">` 组件。所以 `server` 就算不被当主二进制，也会作为"要一起打包的二进制"
+  被写进安装脚本，`light.exe` 找不到文件就报 `LGHT0103`。
+
+**决定性证据**（手工复跑 light，绕开 bundler 的吞错误输出）：
+```
+D:\projects\ccs\src-tauri\target\release\wix\x64\main.wxs(145) : error LGHT0103 :
+  The system cannot find the file 'D:\projects\ccs\src-tauri\target\release\server.exe'.
+```
+同一次生成的 `main.wxs` 里：`:141` 的**主**二进制已经是正确的 `cc-switch.exe`（说明 `default-run` 生效了），
+`:144-145` 多出一个 `<Component Id="server">` —— 这就是残留候选。
+
+**两处修复**（都在 `src-tauri/Cargo.toml`，代码零改动）：
+1. `[package] default-run = "cc-switch"`（`:10-12`）——把主二进制钉死。
+2. `git mv src-tauri/src/bin/server.rs → src-tauri/src/headless_main.rs`，并把 `[[bin]] path` 改成新路径（`:55-59`）
+   ——让 `src/bin/` 目录消失，CLI 就扫不出幽灵候选。放在 `src/` 顶层而不是 `src/headless/` 里，
+   是为了避开同名的库模块文件 `src/headless/server.rs`（重名会让人以为 bin 入口就是那个模块）。
+
+**顺带钉死的一条脆弱点**（**别顺手改**）：主 bin 上的 `required-features = ["desktop"]` 现在是**有用的**。
+`rust.rs:944-952` 会按 `--features` 过滤声明的 bin，而我们平时不传 `--features`（走 cargo 的 default），
+于是两个声明的 bin 都被过滤掉，主二进制改由"`src/main.rs` 兜底扫描 + `default-run`"给出——恰好只剩一个候选。
+若哪天给 `tauri build` 加 `--features desktop`，`cc-switch-server` 会重新出现在"非主二进制"里，
+`light.exe` 就会改成抱怨 `cc-switch-server.exe` 找不到。真要长期稳，办法是把无头入口拆成独立 crate。
+
+**打包环境坑**（与代码无关，但会挡住本地复现）：
+- WiX 由 bundler 现场下载 `wix314-binaries.zip`（`msi/mod.rs:39-41`，sha256 `6ac824e1…`），
+  走 `ureq::Proxy::try_from_env()`（`src/utils/http_utils.rs:67-71`）→ **给进程设 `HTTPS_PROXY` 才会用代理**；
+  本机直连 `objects.githubusercontent.com` 8 秒超时（实测：带 `-x` 7.27s 下完 41.3 MB，不带就 `(28)`），
+  所以第一次尝试是卡死在下载阶段。解压缓存目录 `C:\Users\admin\AppData\Local\tauri\WixTools314`，第二次跑不再下载。
+- `--bundles msi` 每次都会先跑 `beforeBuildCommand`（vite ~12-14s），并且 Cargo.toml 一改 release 就全量重编（实测 6m18s / 6m37s）。
+- **`.ps1` 也别写中文**（§9 那条".cmd 里不要写中文注释"的同族坑，这次代价更大）：PowerShell 5.1 按 ANSI 代码页读无 BOM 的
+  UTF-8 脚本，某些中文字节序列会把解析器打崩——实测报 `At …gates-after-move.ps1:25 char:25 / The string is missing the terminator: '`，
+  **整个脚本一行都没执行**（我等了半天才从 `tools/*.err.log` 里看到）。写标签用 ASCII 就好。
+
+**复验**：见下表（脚本 `.ci-sandbox/legacy-msi-retry4.ps1`，日志 `tools/msi4.log`，PID 记在 `.ci-sandbox/msi4.pid`；
+STEP1 单独跑在 `legacy-msi-retry3.ps1` / `tools/msi3.log`）。
+
+| 步骤 | 命令 | 结果 |
+| --- | --- | --- |
+| STEP1 | `cargo check --no-default-features --features headless --lib --bin cc-switch-server` | **exit 0**，1.61s（新路径编得过） |
+| STEP2 | `cargo build --no-default-features --features headless --bin cc-switch-server` | **exit 101**：`failed to remove file …\target\debug\cc-switch-server.exe` + `Access is denied. (os error 5)`——那个 debug 产物正被 §6.3 留在 14515 的 e2e 实例**运行中占着**（Windows 不允许覆盖在跑的 exe）。**不是代码问题**；STEP1 的 check 已足够证明新路径可编，所以 STEP2 从复验里去掉（要重编它得先停 14515 那个进程）。 |
+| STEP3 | `pnpm tauri build --config src-tauri/tauri.legacy.conf.json --bundles msi` | **exit 0**：`Finished release profile in 6m 42s` → `Built application at: …\release\cc-switch.exe` → candle → light → `Finished 1 bundle at: …\bundle\msi\CC Switch_4.0.15_x64_en-US.msi`，**16,572,416 字节**（23:01:21），已复制到 `.ci-sandbox/legacy-CC Switch_4.0.15_x64_en-US.msi`。**没装过**（不想动用户机器上的正式实例），只验到"安装包产出来了"。 |
+| STEP4 | `pnpm tauri build --bundles msi`（base 配置 = v4 UI，护住 `release.yml` 与 `build-artifacts.yml` 的 desktop job） | **MSI 照样打出来**（`Finished 1 bundle at:`，17,092,608 字节，23:08:29），**exit 1 的原因不是打包**：`A public key has been found, but no private key. Make sure to set 'TAURI_SIGNING_PRIVATE_KEY'`——base 配置留着 `createUpdaterArtifacts: true`，本机没有签名私钥。**CI 两边都不用改**：`release.yml:191-192` 上了 secret，`build-artifacts.yml:324-330` 早就用 `--config '{"bundle":{"createUpdaterArtifacts":false}}'` 关掉并注明了同一条报错。 |
+
+> 两条顺带结论：
+> ① **打包会把 exe 改掉，导致下一次 `tauri build` 全量重编 release**（日志里 `Info Patching … with bundle type information: msi`
+> 之后，STEP4 又 `Compiling cc-switch` 跑了 6m42s）。本地连着打两种包时别把这段时间当成"缓存没命中的异常"。
+> ② STEP4 的 exit 1 是**打完包之后**才发生的，看日志要看到最后一行，别在 `Finished 1 bundle at:` 就下结论。
+> ③ 这个坑与 config 无关（幽灵候选来自目录扫描），所以**新工作流的 `desktop` job 本来也会以同样方式失败**
+> ——`build-artifacts.yml:329` 走的正是 `pnpm tauri build --bundles msi`。现在被这两处修复顺带堵掉了；
+> 但注意这条工作流**仍然一次都没真跑过**（§12.5 末），STEP3/4 是本机等价命令的实测。
+
+**挪文件之后重跑的 Rust 门**（`tools/gates4.log` + `.ci-sandbox/gates-headless-fix.ps1`，全部 `tools/rust.cmd` 等价环境）：
+
+| 门 | 结果 |
+| --- | --- |
+| `cargo fmt --check --all` | **exit 0**（两次，改动前后各一次） |
+| `cargo clippy -- -D warnings`（default = desktop，与 `ci.yml` 同参数） | **exit 0** |
+| `cargo clippy --no-default-features --features headless --lib --bins -- -D warnings` | 第一次 **exit 101**，修完 **exit 0**（39.38s）——见下面那条 CI 盲区 |
+| `cargo check --no-default-features --features headless --lib --bin cc-switch-server` | **exit 0**（7.57s） |
+| `cargo test --lib --features test-hooks` | **3763 passed / 0 failed / 11 ignored，40.06s**（与 §13.3 那次同数） |
+
+> **新发现的 CI 盲区**（这条不在 §11 的 11 条里，是这次多跑出来的）：`ci.yml` 的 clippy 用 default 特性跑，
+> 而 `src-tauri/src/headless/server.rs` **只在 `headless` 特性下编译**，所以里面的
+> `useless_conversion` 永远抓不到。实测报错点在改文件之前就在：
+> `src-tauri/src/headless/server.rs:181` `cmd: cmd.into()`——`InvokeRequest.cmd` 的类型就是 `String`
+> （`tauri-2.10.3/src/webview/mod.rs:134`），`cmd` 本身也是 `String`，`.into()` 是空转换。
+> 已按 §11.2（"我们新增代码里的冗余"）删成 `cmd,`，headless 侧 clippy 转绿；行为零变化。
+> 要长期堵住这个盲区，得给 `ci.yml` 补一条 headless 特性的 clippy（改现有 CI 门，**等你点头**）。
+>
+> 产物绝对路径备查：单文件 exe `D:\projects\ccs\src-tauri\target\release\cc-switch.exe`（43 MB）；
+> 旧 UI 安装包已转出打包目录 `D:\projects\ccs\.ci-sandbox\legacy-CC Switch_4.0.15_x64_en-US.msi`
+> （16,572,416 字节，在 STEP4 的同名文件覆盖它之前 copy 出来的——就是下面那条同名坑）。
+
+**还发现一件要你先拍板的（不改代码）**：两套 UI 的桌面产物**文件名完全一样**——
+`productName`/`version` 没区分，MSI 都是 `CC Switch_4.0.15_x64_en-US.msi`，后打的会盖掉先打的
+（我在脚本里先把旧 UI 那份 `Copy-Item` 到 `.ci-sandbox/` 才敢跑 STEP4）。
+要并存得动 `tauri.legacy.conf.json` 的 `productName`（连带升级码/安装标识），这属于交付形态决策，等你说话。
+
+---
+
+## 13.7 旧 UI 的 CSS 一直是"按新 UI 扫出来的"：一个静默的构建配置 bug（2026-10-23 已修）
+
+**症状**（用户截图原话："那几个空白是什么"）：顶栏三处渲染不出来——
+① 最右侧"添加新供应商"按钮变成一个**没有加号的白圆**（只剩投影）；② "Claude 本地路由"开关的轨道**完全看不见**；
+③ 任何用到新 UI 没用过的颜色的地方（徽章、警告条、成功/危险按钮）都会掉色。
+
+**证据链**（每一步都是实测，不是推断）：
+- DOM：`button[aria-label="添加新供应商"]` 的 class 里有 `bg-orange-500`，但 computed
+  `background-color: rgba(0,0,0,0)`、`color: rgb(255,255,255)`，两个 `+` 的 `<path>` stroke 都是白
+  → **白底白字**，圆形的可见部分其实只有 `shadow-lg`。
+- CSS：`dist-legacy*/assets/index-*.css` 里搜不到 `.bg-orange-500`、`.bg-emerald-500`、`.bg-gray-200`、
+  `.text-yellow-600`，**却搜得到** `.bg-control-off[data-state=unchecked]{…}`——这个类只出现在
+  `src/components/ui/switch.tsx`（新 UI），`src-legacy/` 里一个都没有。→ 打包时 Tailwind 扫的是 `./src/**`。
+- 根因：`vite.legacy.config.ts` 里写的是 `css.postcss: "./postcss.legacy.config.cjs"`。
+  **vite 的 `css.postcss` 传字符串时按"去这个目录找配置文件"解释，不是配置文件路径**，于是没找到任何东西，
+  退回根目录 `postcss.config.cjs`（`tailwindcss: {}` 不带 config）→ Tailwind 自动发现
+  `tailwind.config.cjs`，而它的 `content` 是 `["./src/index.html","./src/**/*.{js,ts,jsx,tsx}"]`。
+  也就是说 `tailwind.legacy.config.cjs`（content 指向 `./src-legacy/**`）**从来没生效过**。
+
+**量化**（一次性脚本 `.ci-sandbox/tw-missing.cjs`：抽 `src-legacy` 字符串字面量里的 class 候选，逐个查 CSS 里有没有对应选择器）：
+
+| | class 候选 | CSS 里不存在 | 占比 |
+|---|---|---|---|
+| 修复前 | 664 | **262** | 39.5% |
+| 修复后 | 664 | 33 | 5.0% |
+
+剩下 33 个逐条核过，全是**脚本误报或本来就不该有**：带 `:`/`.` 的转义类（`focus-visible:ring-2`、
+`space-y-1.5` 用 `-F` 直接搜都在）；`animate-in`/`fade-in-0` 来自 `tailwindcss-animate`，而
+**v3.20.4 自己的 `tailwind.config.cjs` 就是 `plugins: []`**（`git show v3.20.4:tailwind.config.cjs`），
+旧版从来没生成过这些类，属忠实复现；其余是 `fill-opacity=`、`top-level` 这类被误当 class 的普通字符串。
+顺带核了一件重要的事：`diff <(git show v3.20.4:tailwind.config.cjs) tailwind.legacy.config.cjs` **只差 `content` 一行**。
+
+**修复**（`vite.legacy.config.ts`，只动这一处）：`css.postcss` 改成内联
+`plugins: [tailwindcss({ config: path.resolve(__dirname, "tailwind.legacy.config.cjs") }), autoprefixer()]`，
+并把 `postcss.legacy.config.cjs` 里那个字符串路径废弃（**待决定：这个文件删掉还是留着当备用**）。
+
+**影响面（比桌面版大得多）**：`dist-legacy`（web 版）和 `dist-legacy-desktop` 现在产出**同一份 CSS**
+（同名 `index-Bxf3F2jj.css`，91.65 kB）——反过来说，**之前那两份内嵌的页面都带着这个 bug**：
+§5.6 的 EL9 单二进制、容器镜像 `localhost/cc-switch-server:dev`、以及 §13.6 那个
+`.ci-sandbox/legacy-CC Switch_4.0.15_x64_en-US.msi` 全是修复前的产物，**要重编再发**
+（web 侧走 `pnpm build:legacy:web` + `tools/wsl-el9-copy-check.sh` 那条链）。
+之前 §3.5 的 E2E 16/16 抓不到它，因为断言的是**行为和文案**，颜色掉了不影响通过——这是个盲区。
+
+**复验**：桌面 debug 重编（`pnpm tauri build --config src-tauri/tauri.legacy.conf.json --debug --no-bundle`，
+1m18s，exit 0）后真机截图：加号是**橙色圆 + 白色加号**，开关轨道是**灰色**（`.ci-sandbox/after-cssfix-full.png`、
+`after-header-left.png`、`after-header-right.png`）。
+
+## 13.8 会话管理页在 v4 后端上必崩：有 blocks 时不下发 `content`（**未修，等你拍板**）
+
+**症状**：整页换成根错误边界，文案"界面遇到了问题 / 重新加载界面"，日志里
+`TypeError: Cannot read properties of undefined (reading 'slice')`（`.ci-sandbox/desktop-home/logs/cc-switch.log`，
+连打 4 次）。
+
+**链路**（两边都读了源码）：
+- v4：`src-tauri/src/session_manager/model.rs:11-36` 的 `SessionMessage.content` 是 `#[serde(default)]`，
+  而下面**手写的 `Serialize`（`model.rs:38+`）在 `blocks` 非空时直接跳过 `content`**，
+  注释写得很清楚："有 blocks 时省略 content（它只是 blocks 的投影，大会话里约占 payload 的四分之一）"。
+- v3 前端（逐字节冻结，不能改）：`src-legacy/components/sessions/SessionManagerPage.tsx:384-396` 把
+  `msg.content` 原样传给 `src-legacy/components/sessions/utils.ts:225-232` 的
+  `formatSessionMessagePreview(content) => content.slice(0, maxLength)` → `undefined.slice` 炸。
+- 对照 v3 后端：`git show v3.20.4:src-tauri/src/session_manager/mod.rs:31-37` 的 `SessionMessage`
+  是 `content: String` **必发**。所以这是 v4 那次"blocks 化"重构改掉了旧 UI 依赖的字段。
+- 实测 payload：`invoke("get_session_messages", {providerId:"claude", sourcePath:"…\.claude\projects\D--projects-newapi\1182e655-….jsonl"})`
+  → 2157 条消息，键只有 `role,ts,id,turnId,blocks`（部分多 `injected`/`meta`），**没有 `content`**。
+
+**触发条件**：`currentView === "sessions"` 才挂载那个页面（`src-legacy/App.tsx:1099-1104` 是个 switch），
+所以正常是"点开会话管理就白屏"。我这次**一启动就白屏**，原因很具体：那次重建没换 `identifier`，
+用的是正式 id `com.ccswitch.desktop` → WebView2 复用了你**正式版那份 profile**，
+`localStorage["cc-switch-last-view"]` 里留着 `"sessions"`（正式版上次停在这一页）。已经把该键改回原值了。
+> 这条顺带说明 §13.4 那个"换 identifier 只为并存"的隔离**还多挡了一层东西**：不换的话旧 UI 会读写
+> 正式版的 WebView2 profile（localStorage 那一层，`settings.json` 那层本来就隔离不了，见 §13.4）。
+
+**三条路，我没动代码**：
+| | 做法 | 代价 |
+|---|---|---|
+| ① 传输层补字段（推荐） | legacy 构建里把 `@tauri-apps/api/core` 包一层：web mode 已有 shim，桌面 mode 也加同一个 alias，`invoke("get_session_messages")` 回来后从 `blocks` 拼纯文本填进 `content` | 一处小改；src-legacy 零改动、后端零改动、不影响新 UI；**同一个改动顺手修掉 web 版/无头版页面的同一个崩溃** |
+| ② 后端为旧客户端始终下发 `content` | 需要区分"谁在调"（参数/头/新命令），动共享命令的响应 | 破坏 v4 那次省 1/4 payload 的优化意图，改动面最大 |
+| ③ 记为已知限制 | 旧 UI 里"会话管理"不可用 | 用户能感知的功能缺失，§11 要加一条 |
+
+**另外**：这个崩溃暴露了 §3.4 命令兼容清单的方法论盲区——那份清单只核了**命令存不存在**，
+没核**响应体字段还在不在**。要补的话，值得拿旧 UI 每个 `invoke()` 的返回值形状做一次实测对照
+（`src-legacy/lib/api/*.ts` 就是现成的调用点清单）。
+
+## 13.9 无头单二进制重编 + CLI 侧真机复验（2026-10-24，用户："跑一下cli端我看看"）
+
+**做了什么**：§13.7 的 CSS 修复只改了构建配置，产物里只有桌面 debug 版重编过。这次把 **Windows 无头
+release 二进制**重编（`dist-legacy` 编译期内嵌，`headless/assets.rs:4` 的 `#[folder = "../dist-legacy"]`），
+起起来，命令行面 + HTTP API 面 + 真浏览器页面三面都验了一遍，然后开真实 Chrome 窗口交给用户点。
+
+| 项 | 结果 | 复现命令 / 证据 |
+|---|---|---|
+| release 重编 | `Finished 'release' profile [optimized] target(s) in 5m 41s`；产物 `src-tauri/target/release/cc-switch-server.exe` **41,938,432 B**，sha256 `e48abf7f5c60ce47e9d652b5b453dea813d11da2c184133ec5261b0745b3d2c8` | `tools/rust.cmd build --release --no-default-features --features headless --bin cc-switch-server`（MSVC env 在 `rust.cmd` 里；detached 跑，日志 `.ci-sandbox/headless-release.{out,err}.log`） |
+| 内嵌页面是修好的那份 | `GET /` 引的是 `assets/index-Bxf3F2jj.css`；`GET /assets/index-Bxf3F2jj.css` 里 **`.bg-orange-500{` 命中 1 次**（修复前 0 次） | `bash .ci-sandbox/cli-demo.sh <端口>`（脚本里这一段是 `grep -c -F '.bg-orange-500{'`，必须 `-F`，选择器带 `.`） |
+| 页面真的上色了 | `button[aria-label="Add New Provider"]` computed `background-color: rgb(249,115,22)`（§13.7 修复前是 `rgba(0,0,0,0)` 白底白字） | `node .ci-sandbox/cli-shot.mjs http://127.0.0.1:<端口>/ .ci-sandbox/cli-page-main.png "<页内表达式>"` → 截图 `.ci-sandbox/cli-page-full.png`（带首启介绍弹窗）、`cli-page-main.png`（关掉弹窗） |
+| CLI 面 | `--help` 五个选项都在；**`--bind 0.0.0.0` 不带 token 直接拒绝**（`监听地址 0.0.0.0 不是本机回环，必须用 --token…`，exit 1）；未知参数报错并回打用法 | 直接跑 exe；`headless_main.rs:80-90` 是那段守卫 |
+| HTTP API 面 | `health`/`meta` OK；倍率 `"1"`→设 `2.5`→读回 `"2.5"`、`-1` 报 `无效倍率: -1 - 倍率不能为负数 (Invalid multiplier…)`；`save_stream_check_config` 写入 `{20,2,900}` 后 `get` 读回同值 | 同上脚本 |
+| 真浏览器 E2E | **16/16 全通过**（21 次 `/api/invoke` 全 2xx、SSE 两帧 `provider-switched`/`profile-applied`、控制台无应用级报错） | `node tools/browser-e2e.mjs http://127.0.0.1:<端口>/` |
+| 沙箱真隔离（这次做对了） | E2E 跑完，用户真实 `~/.claude/settings.json`（mtime **10-20 22:49**）与 `~/.cc-switch/settings.json`（**10-22 22:00**）**一个都没变**；被写的只有 `.ci-sandbox/cli-home/` 里的 `.cc-switch/settings.json`、`cc-switch.db`、`model-pricing.json` | 起服务时同时给 `CC_SWITCH_TEST_HOME`（`config.rs:78-88`，没有 cfg 门，就是给测试/调试用的 home 覆盖）和 `--data-dir`。**验一眼就看 `/api/meta` 的 `homeDir`**——它是真的还是沙箱路径，骗不了人 |
+
+**两个要记的坑**：
+
+1. **`/api/meta` 的 `homeDir` 是隔离的唯一可见证据**。只给 `--data-dir` 时 `homeDir` 仍是 `C:\Users\admin`
+   （§13.4 已经写明 `settings.json` 跟着 home 走，不跟 data dir 走）。这次第一版启动脚本就漏了，
+   靠 `meta` 才发现。
+2. **一个没定位到根因的 PowerShell 现象**（结论只能是"这条路径不可信"，别当规律用）：同一个 `.ps1`
+   里 `$env:CC_SWITCH_TEST_HOME = $dataDir` 紧接 `Start-Process`，起出来的服务 `homeDir` 是真实用户目录
+   （3/3 复现）；把上面那行**中文注释**删掉就正常（2/2）；可"中文注释 + 下一行赋值"单独做成最小复现
+   又是正常的。所以别猜原因，**起完服务必查 `/api/meta`**。用 bash 直接带 env 起（`CC_SWITCH_TEST_HOME=… ./cc-switch-server.exe … &`）
+   这次是好的（`.ci-sandbox/cli-server.out.log`）。
+
+**§13.8 那个崩溃在 web / 无头侧同样存在（这次是实测，之前只是推断）**：
+- 往沙箱 home 放一条合成会话（`.ci-sandbox/cli-home/.claude/projects/D--synthetic/synthetic-session.jsonl`，
+  两行：一行 `type:"user"`、一行 `type:"assistant"` 带 `content:[{type:"text",…}]`），
+  `node .ci-sandbox/sessions-payload-probe.mjs <端口> '<jsonl 绝对路径>'` →
+  **2 条消息、键只有 `role,ts,id,turnId,blocks`、"有 content 的条数" = 0**。
+- 页面上把 `localStorage["cc-switch-last-view"]` 设成 `sessions` 再刷新 → 直接落到错误边界
+  （`Something went wrong in the interface … Reload interface`），截图 `.ci-sandbox/cli-sessions-crash.png`，
+  复现脚本 `.ci-sandbox/cli-sessions-crash.mjs`。
+- 顺带读到一条有用的边界：`session_manager::load_transcript` 会校验 `sourcePath` 必须在
+  "home 推出来的会话根目录"底下，越界直接 `Session root not found for provider claude: …`（HTTP 500）。
+  所以无头服务不会被你塞的任意路径读出别处的 jsonl。
+→ ①/②/③ 那张代价表里"① 顺手修掉 web 版/无头版"一栏，现在按实测算。
+
+**本机现场（2026-10-24 01:30 左右）**：
+- 在跑：`cc-switch-server.exe` **PID 43696**，`127.0.0.1:14536`，`--data-dir` 与 `CC_SWITCH_TEST_HOME`
+  都指 `.ci-sandbox/cli-home`（`.e2e-home` 的一份拷贝，12 MB）。用户的 Chrome 已开在
+  `http://127.0.0.1:14536/`（可见窗口标题 `Claude Code 供应商切换器`）。
+- 之前那次"桌面 debug 版"（PID 43088 / 9428）已经不在了；桌面上现在只有正式版 `CC Switch` 和用户自己开的东西。
+- 试错期间起过的另外 3 个无头实例（14531/14534/14535）都已 `Stop-Process` 掉，只剩 14536 这一个。
+- `.ci-sandbox/cli-home/.claude/projects/D--synthetic/` 那条合成会话**已删**（留着会让用户一点开"会话管理"
+  就看到 §13.8 那个错误边界，误以为是新 bug）。
+
+## 13.10 EL9 原生单二进制按修复后重编（2026-10-24，用户："build起来我丢服务器上玩玩"）
+
+**要交付的就是这一个文件**（Linux 服务器上直接跑，不需要容器、不需要显示器）：
+
+| 项 | 值 |
+|---|---|
+| WSL 侧 | `/root/ccs-deploy/cc-switch-server-el9`（38,998,072 B） |
+| Windows 侧拷贝 | `D:\projects\ccs\.ci-sandbox\cc-switch-server-el9`（同 sha256，方便 scp 出去） |
+| sha256 | `11931503e52037746d234e2084edda178e9e47c29dd9c6d5db8fed942b638e29` |
+| glibc 需求 | verneed 最高 **GLIBC_2.34**，`hypot@GLIBC_2.2.5`（EL9 满足；构建最后一步的守卫通过） |
+| 镜像 | `localhost/cc-switch-server:el9` → `bb3b9903c5e1`（旧的 `d8cdebfa6aef` 已被顶掉） |
+| 命令 | `MSYS_NO_PATHCONV=1 wsl.exe -u root bash /mnt/d/projects/ccs/tools/wsl-el9-native-build.sh`（10 分钟级，**必须 detached**） |
+
+**CSS 修复确实在这个 Linux 产物里**（不是只看"构建成功"）：冒烟脚本新加了一条守卫，直接查内嵌资源——
+```
+== 内嵌 CSS 里的 .bg-orange-500（0 = §13.7 那个 bug 复发）==
+CSS=assets/index-Bxf3F2jj.css
+1
+```
+容器里 `pnpm build:legacy:web` 生成的 `index.html` 与本地 `dist-legacy/index.html` **md5 一致**
+（`f8ea95858ce7cb80ca570f95cfe52fe4`，665 B），所以 §13.7 那条 `vite.legacy.config.ts` 的修复走的是同一条链。
+其余冒烟项：`ready=yes alive=yes`、`save/get_stream_check_config` 往返 `{11,2,3333}`、
+倍率 `"1"`→`2.5`→`-1` 报本地化错误、SIGTERM 干净退出（`tools/wsl-el9-native-smoke.sh <bin> <端口>`，这次用 14523）。
+
+**顺手改的两处**：
+- `tools/wsl-el9-native-smoke.sh`：加了上面那段 CSS 守卫（§13.7 的回归守卫，改断言不用重编，因为它跑的是产物）。
+- `.dockerignore`：补 `.ci-sandbox`。这个目录现在 **1.9 GB**（`.ci-sandbox/repo` 那份干净克隆 1.5 GB），
+  不加就会整个塞进 podman 构建上下文，`COPY . .` 慢到像卡死。
+
+**还欠的（⑥ 剩下的部分）**：容器镜像 `localhost/cc-switch-server:dev`（`deploy/Dockerfile` 那条 3 阶段链，
+`tools/wsl-podman-build.sh`）与旧 UI 的 MSI、`target/release/cc-switch.exe`（桌面 release，10-22 23:08）
+都还是 §13.7 修复前的产物。
+
+## 13.11 部署到本机 WSL 试跑（2026-10-25，用户："帮我部署到 wsl 上吧 我要试一下"）
+
+装的就是 §13.10 那个 EL9 原生单二进制 + 仓库自带的 systemd 单元，**没有改单元本体**：
+
+```bash
+install -m 755 /root/ccs-deploy/cc-switch-server-el9 /usr/local/bin/cc-switch-server   # sha256 11931503…
+install -m 644 deploy/cc-switch-server.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now cc-switch-server
+```
+
+| 项 | 结果 |
+|---|---|
+| 服务状态 | `active (running)`，`Main PID` 稳定，`Memory ~10 MB`，监听 `127.0.0.1:14515` |
+| **Windows 直接可达** | 这台 WSL 是 **`wslinfo --networking-mode` = `mirrored`** → 单元默认只绑回环也照样能从 Windows 打开 `http://127.0.0.1:14515/`，不需要 token、不需要 `netsh portproxy`、不需要 SSH 隧道。NAT 模式的机器上这条不成立（要么 `ssh -L`，要么 `--bind 0.0.0.0` + `CC_SWITCH_TOKEN`） |
+| 隔离 | 加了个 drop-in `sandbox-home.conf`：`Environment=CC_SWITCH_TEST_HOME=/var/lib/cc-switch/home`。**原因很具体**：这台 WSL 的 `/root/.claude` 与 `/root/.cc-switch` 是真实在用的，单元只给 `CC_SWITCH_DATA_DIR` 挡不住 `~/.claude`（§13.4）。`/api/meta` 回 `homeDir=/var/lib/cc-switch/home` 就是生效的证据 |
+| 页面 | 内嵌 CSS 仍是修好的那份：`/` 引 `assets/index-Bxf3F2jj.css`，里面 `.bg-orange-500{` 命中 1 次 |
+| 真浏览器 | 从 Windows 打这台 WSL 服务跑 `tools/browser-e2e.mjs` → **16/16**（含 SSE 两帧、倍率往返、定价面板文案） |
+| 日志 | `journalctl -u cc-switch-server -f`；启动行 `无头服务已启动：http://127.0.0.1:14515/（派发窗口 main）` |
+
+**一个没复现起来的失败，别当已解决**：第一次 `systemctl start`（15:59:19）报
+`cc-switch-server 启动失败: 创建命令派发载体失败: Read-only file system (os error 30)`，
+之后 `systemctl restart` 起来了。为定位做了两件事：
+1. 用 `systemd-run` 把单元里每条沙箱指令单独放开跑了一遍（`.ci-sandbox/wsl-sandbox-bisect.sh`）——
+   **连完整那套（`DynamicUser` + `ProtectSystem=strict` + `ProtectHome=read-only` + `PrivateTmp`）都能起**，
+   所以不是某一条沙箱的锅。
+2. 把 `/var/lib/cc-switch` 整个删掉模拟"服务器首次部署"，`systemctl start` —— **正常起来**。
+→ 结论只能写成"首次启动偶发一次 `Read-only file system`，出现在 `bootstrap.rs:104` 的
+`WebviewWindowBuilder::build()`（那句错误文案就是它的 map_err），没能复现第二次"。
+下次真在服务器上撞到，先记 `journalctl -u cc-switch-server -b` 的完整上下文再动单元配置，别急着删沙箱项。
+
+## 14. 浏览器侧的 SQL 备份导入/导出打通（2026-10-25，用户："为什么我不能导入备份"）
+
+### 14.1 现象与根因（两条，缺一不可）
+
+用户控制台给出的原文错误：
+```
+[useImportExport] Failed to open file dialog Error: 无头模式（服务器）没有桌面环境，不支持文件选择对话框
+[useImportExport] Failed to export config Error: 无头模式（服务器）没有桌面环境，不支持保存文件对话框
+```
+1. v3 前端的导入导出全靠原生对话框：`src-legacy/lib/api/settings.ts:119-133` 里 `openFileDialog()`→`open_file_dialog`、
+   `saveFileDialog()`→`save_file_dialog`，而无头侧这两个是 `src-tauri/src/headless/stubs.rs:78-91` 的 `no_gui()` 占位。
+2. **就算把对话框糊过去也是错的**：对话框返回的是*浏览器那台机器*的路径，而 `import_config_from_file` 是在*服务器*上
+   按路径读文件。远程部署时这是两个不同的文件系统——所以必须换成"传内容"，光做 UI 桥不够。
+
+### 14.2 改了哪些文件（`src-legacy` 仍然逐字节等于 v3.20.4）
+
+| 位置 | 改动 |
+|---|---|
+| `src-tauri/src/commands/import_export.rs` | 抽出 `enum SqlSource { Path(PathBuf), Text(String) }` + `run_import()`；新增 `export_config_sql`（返回 `{sql}` 文本）与 `import_config_sql(content)`。两条旧命令的桌面语义不动。`Text` 分支同样先 `trim_start_matches('\u{feff}')`，与 `database/backup.rs:141` 读文件的处理对齐 |
+| `src-tauri/src/command_handler.rs:142` | 在共享宏的命令表里注册这两条（桌面/无头同一张表，不会分叉） |
+| `web/transport/files.ts`（新） | `pickSqlFile()` 用 `<input type=file accept=".sql">` 把内容读进内存、只留一份；`takePickedSql(name)` 按文件名认领；`downloadSqlFile()` 交给浏览器下载 |
+| `web/transport/core.ts` | `LOCAL_COMMANDS` 里给 `open_file_dialog`/`save_file_dialog`/`import_config_from_file`/`export_config_to_file` 装上浏览器侧实现：导入=认领内存内容后调 `import_config_sql`，导出=调 `export_config_sql` 后触发下载 |
+
+复用同一条 `run_with_database_restore_lock` + `skill_state_write_guard` + `run_post_import_sync`，
+所以浏览器导入和桌面导入走的是同一份还原/同步逻辑，没有第二套实现。
+桌面端不受影响：`LOCAL_COMMANDS` 只在 `--mode web` 的别名链里生效，`stubs.rs` 只在 `not(feature="desktop")` 时编译。
+
+### 14.3 验证（都是这次实测的，不是引用旧结论）
+
+| 项 | 结果 |
+|---|---|
+| `git archive v3.20.4 src` ↔ `src-legacy` | 逐字节一致 |
+| `tsc -p tsconfig.legacy.json --noEmit` | 通过 |
+| `cargo check --no-default-features --features headless` + `cargo check`（桌面默认） | 两边都通过 |
+| HTTP 直调两条新命令 | `export_config_sql` 返回 `-- CC Switch SQLite 导出` 开头的文本；`import_config_sql` 喂非备份 → 500 + `仅支持导入由 CC Switch 导出的 SQL 备份文件。 (Only SQL backups exported by CC Switch are supported.)`（`database/backup.rs:291`，校验在任何写入之前） |
+| **真浏览器 11/11**（`.ci-sandbox/io-e2e.mjs http://127.0.0.1:14540/ run`） | `create_profile` → UI 点"导出 SQL 备份" → 下载目录里出现 `cc-switch-export-*.sql`（29,892 B，含这条 profile）→ `delete_profile` 确认库里没了 → UI 点"选择 SQL 文件"（CDP 把文件喂进 `<input>`）→ 页面显示 `📄 io-import.sql` → 同一个按钮变"导入"，点它 → `list_profiles` 又看到 `io-roundtrip`（**上传的内容确实被应用**）+ 面板 `Import Successful!` → 负例选 `io-junk.sql`（`drop table providers;`）→ 面板给出上面那句拒绝 → 库里数据没被破坏 |
+
+### 14.4 浏览器自动化这次踩到的三件事（写死在这儿，下次别重新调查）
+
+- **全新浏览器配置进来先弹「Welcome to CC Switch」**：那个 `div.fixed.inset-0`（`bg-black/50 backdrop-blur-sm`）铺满全屏，
+  页头齿轮点了没反应，`document.elementFromPoint()` 只会返回它。 harness 必须先点 "Got it"。
+- **`<input type=file>` 需要真实用户激活**：`dispatchEvent` 合成的 `MouseEvent` 不算（Chrome 立刻 fire `cancel`），
+  要用 CDP 的 `Input.dispatchMouseEvent`；接收文件则是
+  `Page.setInterceptFileChooserDialog` → `Page.fileChooserOpened` → `DOM.setFileInputFiles{backendNodeId}`，实测可用。
+- **harness 里那个"喂文件"的监听器必须一次性摘掉**：留着的话第二次的 `fileChooserOpened` 会被上一个监听器
+  用**上一个文件**覆写（差点测成"选了 io-junk.sql 结果导入的是 io-import.sql"）。
+
+### 14.5 顺手撞见、但**没有**动的东西（要拍板）
+
+- `open_zip_file_dialog`（Skills 页"导入已有"选 ZIP）和 `save_markdown_dialog`（会话管理导出 Markdown）
+  在无头下仍然是 `no_gui()` 报错。同一套上传/下载桥能做，但这是两个新的功能决定，不在"导入备份"这次的范围里。
+- 关于页的 CLI 安装在这台 systemd 服务上必失败：`npm error syscall mkdir / npm error path /.npm / errno ENOENT`。
+  原因是单元的 `DynamicUser` 让 `HOME` 为空，npm 拿不到 cache 目录。**不是移植引入的**（桌面端有 `HOME`），
+  修法是给单元加 `Environment=HOME=/var/lib/cc-switch/home`（或 npm 的 `cache` 配置），但这属于部署形态决定。
+- 你截图那台服务控制台里的两个噪音，同样没动：`/favicon.ico` 404（无头服务器没有 icon 路由）、
+  图表 `width(-1)/height(-1)` 警告（v3 图表在容器宽度为 0 时算出负数，不影响渲染但会刷屏）。
+
+### 14.6 产物与现场（本次会话结尾的真实状态）
+
+- 这次改动**尚未提交**，未提交集在 §11.3 那份之上又多了 4 个文件：
+  `src-tauri/src/commands/import_export.rs`、`src-tauri/src/command_handler.rs`、`web/transport/core.ts`、新文件 `web/transport/files.ts`。
+- ~~14515 上你正在用的那个 WSL 服务，装的还是 §13.10 的旧二进制（sha256 `11931503…`）~~ →
+  **已被 §16.3 替换**：现在跑的是 `1377a492…`，§14 与 §15 都在里面。
+- Windows 侧用于验证的调试实例：`.ci-sandbox/io-home`（`CC_SWITCH_TEST_HOME`）+ `127.0.0.1:14540`，
+  起法见 `.ci-sandbox/launch-io.ps1`。它跑的是 debug 构建，rust-embed 在 debug 下**按磁盘读** `dist-legacy`，
+  所以那次 11/11 验证的就是当前源码编译出来的前端。
+
+## 15. 把项目链接换成本 fork（2026-10-25，用户："能不能把项目链接换成我这个版本的，要不然用户下载到原版就用不了了"）
+
+### 15.1 先说一个会改变所有 URL 的事实
+
+`git remote -v` 里写的是 `https://github.com/zhaoyj7/cc-switch.git`，但 GitHub API 对这个仓库返回
+**301 → `https://github.com/silveridc/cc-switch`**（`fork: true`，parent `farion1231/cc-switch`，MIT，`main`，
+pushed 2026-10-22）。所以这次统一换成 **`silveridc`**，不是 `zhaoyj7`。
+
+另一个前置条件没解决，**换链接本身不产生"可下载的 fork"**：
+`GET /repositories/1424583558/releases` 现在是空数组。也就是说关于页/README 点"查看全部版本"会进到一个
+空的发布列表。真要给用户下载，得先用 §12.3 那条 `build-artifacts.yml` 产出物、再手动建成 GitHub Release。
+
+### 15.2 ①「仓库门面」：改了 12 个文件，全是文本
+
+| 文件 | 改了什么 |
+|---|---|
+| `README.md` / `README_DE.md` / `README_JA.md` / `README_ZH.md` | 各自 4 处 `github.com/farion1231/cc-switch` → `silveridc`（徽章的**点击落点** 9/10/12 行 + 399~403 行那条指向 `blob/main/docs/guides/...` 的站长指南） |
+| `.github/ISSUE_TEMPLATE/{bug_report,doc_issue,feature_request,question,config}.yml` | 16 处：FAQ/已有 issue 的检索入口、`security/advisories/new`、`discussions` |
+| `.github/CODEOWNERS:9,13,14` | `@farion1231` → `@silveridc`（否则 fork 上开了 Code Owner 审查就是等上游来批） |
+| `.github/FUNDING.yml:1` | `github: farion1231` → `github: silveridc` |
+| `src-tauri/Cargo.toml:7` | `repository = "https://github.com/silveridc/cc-switch"` |
+
+**刻意没改的**（每条都有具体理由，不是漏了）：
+- `.github/workflows/sync-r2.yml:71` 里的 `"farion1231/cc-switch"` 是**仓库名比较**，不是链接：它的语义是
+  "官方仓库缺 R2 secret 就必须报错"。改成 silveridc 会让**你的** fork 在没有 R2 secret 时也拒绝跳过 → 直接红。
+- `img.shields.io/github/v/release|downloads/farion1231/...`（徽章上的数字来源）与 star-history / trendshift
+  那两个第三方统计图：它们展示的是上游的热度事实，指到空仓库只会显示 unknown/空图。
+- `authors = ["Jason Young"]`（`Cargo.toml:5`）：这是署名，MIT 条件下不该动。
+- `identifier = "com.ccswitch.desktop"`、updater 的 `endpoints`+`pubkey`、`misc.rs` 的便携版下载直链、
+  `ccswitch.io` 官网入口、`docs/` 那 172 个文件：用户本次只勾了 ①②，这些属于 ③④，**没动**。
+
+### 15.3 ②「关于页链接」：只能在传输层认领，因为 `src-legacy` 是冻结的
+
+v3 组件把地址写死在 JSX 里（`src-legacy/components/settings/AboutSection.tsx:450,456,465,910`、
+`src-legacy/components/DatabaseUpgrade.tsx`），i18n 覆盖改不动 `href`。所以新增 `web/transport/links.ts`：
+- `forkUrl()` 只替换仓库前缀，`/releases/tag/vX`、`/issues` 这些后缀原样保留；
+- `rewriteUpstreamLinks()` 在 `web/transport/core.ts`（就是 `@tauri-apps/api/core` 的别名模块）被 import 时
+  装一次：首屏改一遍，之后 MutationObserver 只按 React 新插入的**那一小片子树**改，不做全文档扫描；
+- `LOCAL_COMMANDS.open_external` 打开前先过一次 `forkUrl`，覆盖 `settingsApi.openExternal(...)` 这一路。
+
+`.ci-sandbox/links-e2e.mjs http://127.0.0.1:14540/` → **3/3**：页面上不再有上游 `a[href]`、
+关于页那个链接是 `https://github.com/silveridc/cc-switch`、点 GitHub 按钮请求打开的也是它。
+（脚本里把 `window.open` 换成记录器：合成点击不产生用户激活，真弹窗会被拦，那样测出来是假阴性。）
+
+### 15.4 ② 的边界（要知道它不覆盖什么）
+
+- **桌面 legacy MSI 不生效**：那套别名只在 `--mode web` / `CC_UI_TRANSPORT=web` 下挂，桌面版用的是真 Tauri 插件，
+  关于页仍会打开上游。要给桌面也换上，得让 `vite.legacy.config.ts` 在桌面模式下也把 `@tauri-apps/api/core`
+  指向一层"只改写 URL、其余原样转发"的包装——这是新决定，没替用户做。
+- **v4 UI（`src/`）那 4 处没动**：`src/components/settings/AboutSection.tsx:107,113,122`、
+  `src/components/shell/NewLayoutDialog.tsx`、`src/components/DatabaseUpgrade.tsx`。它们不受冻结约束，
+  改起来就是字面替换，但用户勾的是"web 版那条路"，所以留着等一句话确认。
+
+### 15.5 顺着别名机制查出来的一个真缺口：桌面 legacy 版没有那层返回值解包（**未修，等你拍板**）
+
+`tools/cmd-compat.md` 第二节原来写的是"桌面版和 web 版共用同一个 `web/transport/core.ts` 做适配"，
+**这句与代码不符**（已把该文档改成实际情况）。证据链：
+1. `vite.legacy.config.ts:40` `const webTransport = mode === "web" || process.env.CC_UI_TRANSPORT === "web"`，
+   `:87` `...(webTransport ? webAliases : [])` —— 九个 `@tauri-apps/*` 别名（含 `api/core`）**只在 web 模式下挂**。
+2. 桌面 legacy 走的是 `package.json:14` `build:legacy:desktop`（无 `--mode web`），
+   `src-tauri/tauri.legacy.conf.json:3-6` 的 `frontendDist: ../dist-legacy-desktop` +
+   `beforeBuildCommand: pnpm run build:legacy:desktop` 也没设那个环境变量。
+3. 于是 `RESULT_ADAPT`（`web/transport/core.ts:36-40`）在桌面版根本不参与，而旧前端
+   `src-legacy/lib/api/skills.ts:201-207,285-289` 是把 `discover_available_skills` /
+   `check_skill_updates` / `install_skills_from_zip` 的返回值**当数组**用的，v4 后端返回的是
+   `{skills,…}` / `{updates,…}` / `{installed,skipped}`。
+4. 对着**产物**验了一遍，不是只看配置：
+   `grep -rl "cc-switch-web-token|/api/invoke" dist-legacy-desktop` → **0 个文件**（web 版 1 个），
+   而 `install_skills_from_zip` 两边都命中 —— 桌面那份 bundle 里确实没有 transport 层。
+
+**后果**：桌面 legacy 版（§13 那个 MSI）的 Skills 页三个入口拿到的会是对象而非数组——
+"发现可安装"和"检查更新"大概率显示空列表，"从 ZIP 安装"会当成没有安装成功。
+§13.4 那次 13/13 的 CDP 复验没覆盖 Skills 发现/更新这条路径，所以一直没暴露。
+
+**为什么不自己动手**：修法要么是把 `api/core` 也做成"桌面模式下只解包、不接管 invoke"的包装别名
+（改变桌面构建形态），要么是在 Rust 侧把这三条命令的返回形状退回数组（影响 v4 自己的新 UI）。
+两条都不是我该替你选的，所以只报不动。要修的话，第一种只需要在 `SHIMS` 之外加一条
+"两个模式都挂、但内部按 `isTauri` 分派"的 core 包装。
+
+## 16. 代码格式化 + EL9 二次重编 + 装进服务复验（2026-10-25，用户："跑一下代码格式化"）
+
+### 16.1 格式化：只碰这批改动自己的文件
+
+| 工具 | 范围 | 实际改动 |
+|---|---|---|
+| `cargo fmt`（`cmd.exe //c "tools\rust.cmd fmt"`） | 整个 crate | **1 处**：`src-tauri/src/commands/import_export.rs:65` 的 `run_import` 签名被并成一行。改之前全仓 `cargo fmt --check` 也只报这一条，说明其余文件本来就合规 |
+| prettier 3.6.2（`node node_modules/prettier/bin/prettier.cjs --write`） | `vite.legacy.config.ts`、`web/transport/core.ts`、`web/transport/files.ts`、`web/transport/links.ts` | 换行与引号对齐 |
+
+prettier 用**默认配置**的依据：仓库里没有 `.prettierrc`（`package.json` 也没有 `prettier` 键），
+而项目自带的门 `format:check`（只扫 `src/**`）在默认配置下**全绿**——所以默认值就是这里的约定。
+
+**刻意没格式化的**：`src/**`（本来合规，动了就是无关改动）、`docs/*.md` 与 `tools/cmd-compat.md`
+（prettier 的 markdown 规则会重排中文表格对齐）、`.ci-sandbox/*.mjs`（被 `.gitignore` 排除，且 printWidth 80
+会把那些一次性脚本拆得没法读）。
+
+**格式化没改变行为的证据**（不是"看着没问题"）：格式化后重建
+`node node_modules/vite/bin/vite.js build --config vite.legacy.config.ts --mode web`，
+产物哈希仍是 `assets/index-CqlT7Op1.js` —— 内容哈希没变，说明 bundle 逐字节相同，§14.3 的 11/11 与
+§15.3 的 3/3 不需要重跑；`tsc -p tsconfig.legacy.json --noEmit` 也复跑通过。
+
+### 16.2 EL9 为什么编了第二次（有取证，不是重复劳动）
+
+第一次产物（`4707c94b…`，20:53）里 `import_config_sql` 有 3 次、但 `silveridc` **0 次**、`farion1231` 还留着 6 次
+——容器里的 `pnpm build:legacy:web` 是在 `web/transport/links.ts` 建出来之前跑的，§15 没进包。
+取证工具是新加的 `.ci-sandbox/check-el9.sh <bin>`（release 的 rust-embed 是**编译期**打包，只能查二进制）：
+
+| 项 | 第一次（20:53） | 第二次（21:59，**当前**） |
+|---|---|---|
+| sha256 | `4707c94b7ca2…` | **`1377a4928de8e7c16f8fc8284453ad57ff9d0afac03967db82ede3d907ea962b`** |
+| 大小 / 时间 | 39,044,280 B / 20:53:28 | 39,044,280 B / 21:59:57 |
+| 内嵌 bundle | `assets/index-TxT9JJfR.js` | **`assets/index-CqlT7Op1.js`**（与本地重建完全一致） |
+| `import_config_sql` / `export_config_sql` | 3 / 3 | 3 / 3 |
+| `备份内容已失效`（`files.ts`） | 1 | 1 |
+| `silveridc` / `farion1231` | **0** / 6 | **1** / 7 |
+| `bg-orange-500`（§13.7 守卫，0 = 复发） | 16 | 16 |
+| glibc 需求上限 | 2.34 | 2.34（`hypot@GLIBC_2.2.5`） |
+| 镜像 | `70420777abbc` | `0241a4edb6e4`（`localhost/cc-switch-server:el9`） |
+
+`farion1231` 从 6 变 7 是对的：多出来的那个就是 `links.ts` 里的 `UPSTREAM` 常量；`silveridc` 只出现 1 次，
+因为 `FORK` 常量只在 `links.ts` 里写一次，页面渲染时才替换。
+
+**一个假判据，写死在这儿**：`echo build-status=$?` 塞进 `systemd-run` 的命令行后，`$?` 会被外层
+WSL 的 `bash -c` 提前展开，所以日志末尾**永远**是 `build-status=0`。这轮就是被它骗过一次（日志只有 1 行、
+镜像时间没变，却看起来"成功"）。真正的判据只有三条：`podman images` 的镜像 ID 变了、产物的 mtime 变了、
+`check-el9.sh` 的标记对得上。
+
+### 16.3 装进 14515 并在**隔离实例**上复验（不碰你正在用的库）
+
+```bash
+# 先留退路：把上一版（11931503…）备份出来
+cp -n /usr/local/bin/cc-switch-server /root/ccs-deploy/cc-switch-server.prev-1193150
+install -m 755 /root/ccs-deploy/cc-switch-server-el9 /usr/local/bin/cc-switch-server
+systemctl restart cc-switch-server
+```
+
+| 项 | 结果 |
+|---|---|
+| 服务 | `active`；`/api/meta` → `homeDir=/var/lib/cc-switch/home`；`/` 200（665 B）；`/assets/index-CqlT7Op1.js` 200（4,614,931 B） |
+| 备份 | `/root/ccs-deploy/cc-switch-server.prev-1193150`，sha256 `11931503…`（想回退就 `install` 回去 + restart） |
+| Windows 侧拷贝 | `.ci-sandbox/cc-switch-server-el9` 已覆盖为新版（同 `1377a492…`） |
+| 隔离实例 | `systemd-run --unit=ccs-el9-io --collect --setenv=CC_SWITCH_TEST_HOME=/root/e2e-io/home /root/ccs-deploy/cc-switch-server-el9 --bind 127.0.0.1 --port 14577`；`/api/meta` 回 `homeDir=/root/e2e-io/home` —— 这就是"没碰 14515 那份库"的证据 |
+| `io-e2e.mjs` | **11/11**（跑的就是这个 EL9 二进制：建 profile → 导出 29,044 B → 删 → 喂回 → 库里又有 → 垃圾文件被拒） |
+| `links-e2e.mjs` | **3/3**（页面上无上游 `a[href]`；关于页链接与 `open_external` 都是 `https://github.com/silveridc/cc-switch`） |
+| `browser-e2e.mjs` | **16/16**（含 21 次 `/api/invoke` 全成功、SSE 两帧、倍率往返、定价面板文案） |
+| 收尾 | 临时单元已 `stop` 并删掉 `/root/e2e-io`；14515 的 `list_profiles` 仍是空的（原本就是空的，没被写） |
+
+### 16.4 这批之后的现场
+
+- **14515 现在跑的是带 §14 + §15 的版本**（`1377a492…`），导入/导出不需要再经过文件对话框，链接也已指向 fork。
+- 代码格式化**并入同一个未提交集**，没有单独提交（用户没让提交）。
+- 仍然欠的产物（都还是 §13.7 修复前、也因此都没有 §14/§15）：
+  容器镜像 `localhost/cc-switch-server:dev`、旧 UI 的 MSI、`target/release/cc-switch.exe`、`dist-legacy-desktop`。
+- 待拍板项没变，仍是 §11、§13.6、§13.8、§14.5、§15.4、§15.5，以及 ③④ 两条本次明确没做的。
+
+## 17. 上游现状盘点：我们落后 v4.0.22（2026-10-30，用户："pull 上游看看都改了啥"）
+
+### 17.1 怎么拉的（下次照做）
+
+直连 `git fetch https://github.com/farion1231/cc-switch.git` 会 `curl 28 / Connection was reset`；
+本机代理当前在 **7891**（`HKCU\...\Internet Settings\ProxyServer`），一次性传入、**不写进 git config**：
+
+```bash
+git -c http.proxy=http://127.0.0.1:7891 fetch https://github.com/farion1231/cc-switch.git main:refs/upstream/main
+```
+
+只新增本地 ref `refs/upstream/main`（`7569b27a`）和 7 个 tag（`v4.0.16`…`v4.0.22`），没加 `upstream` remote、没动工作区。
+
+### 17.2 差多少、差在哪
+
+- 共同祖先 `77c6dc79`（= 我们两个本地提交的父提交）；`HEAD..upstream` = **303 个提交**。
+- 版本 `4.0.15 → 4.0.22`（tag 日期：4.0.16 10-19、4.0.17 10-20、4.0.18 10-21、4.0.19 10-23、4.0.20 10-24、4.0.21 10-26、4.0.22 10-30）。
+- 提交构成：161 fix / 87 feat / 17 docs / 15 chore / 9 refactor / 5 test / 4 style / 3 perf / 1 ci / 1 revert。
+- 各版本主线（读的是上游自带的 `docs/release-notes/vX-zh.md`，不是猜的）：
+
+| 版本 | 主要内容 |
+|---|---|
+| 4.0.16 | 托盘改快捷面板（可在设置里换回菜单）+ 一批 Codex/路由修复 |
+| 4.0.17 | 修 4.0.16 的回归（轻量模式、WebView2 退出、托盘面板缩放） |
+| 4.0.18 | Antigravity CLI（`agy`）+ macOS 授权中心多账号 |
+| 4.0.19 | Kimi Code + Kimi 官方账号登录 |
+| 4.0.20 | Oh My Pi 支持 + 托管 ChatGPT 账号浏览器登录 |
+| 4.0.21 | 多个 Claude 官方订阅账号切换 + Codex 模型列表拖动排序 |
+| 4.0.22 | DeepSeek Harness（第 14 个应用）、OMP 用量、终端参数、WebDAV 清除、Skills 打开目录/看文档、Copilot 原生接口、一批路由修复；**DB v23→v24** |
+
+- 代码热点（base→upstream 的增删行）：`commands/misc.rs` +2566、新增 `dsh_config.rs` 2496、`services/kimi_oauth/mod.rs` 2080、
+  新增 `session_usage_dsh.rs` 1552、新增 `omp_config.rs` 1408、`services/skill.rs` +810/-224、`services/provider/` 14 文件 +2347。
+
+### 17.3 对我们这套改动的具体影响（都是对 diff 实测的，不是推断）
+
+| 检查项 | 结论 |
+|---|---|
+| 注册命令数 | 349 → **376**：新增 27 条、**删除 0 条**（`get_webview_*` 那类 GUI 命令也没删）→ 旧前端 304 条的命令面一条没少 |
+| 我们补的 6 条命令 | `commands/proxy.rs`、`commands/stream_check.rs`、`services/stream_check.rs` 的 `StreamCheckConfig` 字段全部未变；`database/backup.rs`、`commands/import_export.rs` **零改动** → SQL 备份格式没变，§14 的导入导出不受影响 |
+| §14 依赖的 Skills 返回结构 | `SkillDiscoveryResult{skills}`（skill.rs:237）、`SkillUpdateCheckResult{updates}`（:245）、`ZipInstallResult{installed}`（:264）**字段名和形状都没变** → `RESULT_ADAPT` 继续有效 |
+| `get_home_dir` / `CC_SWITCH_TEST_HOME` | `src-tauri/src/config.rs` 零改动 |
+| 新 AppType | Dsh / Kimi / Agy / Omp 四个新变体（`commands/config.rs` 里补的 match 臂）——旧前端只发 v3 那几个 `appType` 字符串，不受影响 |
+| §13.8 会话页崩溃 | **上游没修**：`commands/session_manager.rs` 只 +10 行，是 agy 恢复终端那条，跟 blocks/content 无关 |
+| headless 能不能编过 | 全量 diff 里新增的 GUI-only API 只有 3 处 `tauri::tray::`，且都在 `lib.rs` / `tray.rs`（我们已 cfg 掉）→ **推断**风险低，但只有真跑 `cargo check --no-default-features --features headless` 才算数 |
+| 合并冲突面 | 两边都改过的文件 **25 个**，最要紧的是 `src-tauri/src/lib.rs`（我们把 `generate_handler!` 抽进了 `command_handler.rs`，上游在同一区域加了 27 条命令并重构了 tray 事件）、`Cargo.toml`/`Cargo.lock`/`package.json` |
+
+### 17.4 如果要合，建议的顺序（未执行，等一句话）
+
+1. **不要在现在这个工作区直接合**——这里压着 28 项未提交改动（§16.4）。先开 `zhaoyj7/merge-upstream-4.0.22-<日期>` 分支，把那批改动提交或 stash 后再合。
+2. 冲突优先解 `lib.rs`：把上游新注册的 27 条按原顺序补进 `src-tauri/src/command_handler.rs` 的共享宏，桌面/无头才不会被拉开。
+3. `Cargo.lock` 直接 `cargo update -p`/重建，不手改（上游新增依赖：tokio `process`、`prost 0.14`、`subtle 2.6`）。
+4. DB v23→v24 是**加列**（`add_column_if_missing`，不是新表），旧备份仍可导入；但上游明确写了**升级后退回旧版本会打不开**。
+5. 编译与验收照旧：`cargo check` 两个特性档 → `tsc -p tsconfig.legacy.json` → 重编 EL9 → 隔离实例上 `io-e2e` / `links-e2e` / `browser-e2e`。
+
+
+

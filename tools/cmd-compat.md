@@ -40,7 +40,10 @@ v4 把裸数组包成了「结果 + 失败列表」，字段本身没改名：
 
 旧前端 `src-legacy/lib/api/skills.ts:202,207,289` 直接把返回值当数组用，
 所以这三条必须在 transport 层解包（`src-legacy` 要求与 v3.20.4 逐字节一致，
-不允许就地改）。桌面版和 web 版共用同一个 `web/transport/core.ts` 做适配。
+不允许就地改）。解包在 `web/transport/core.ts` 的 `RESULT_ADAPT` 里做，
+**但那张表只在 `--mode web`（或 `CC_UI_TRANSPORT=web`）下被别名挂进去**
+（`vite.legacy.config.ts:40,87`：所有 `@tauri-apps/*` shim 都在 `webTransport` 分支里，桌面模式用真包），
+所以桌面 legacy 版目前**没有**这层解包 → 见交接文档 §15.5。
 
 ## 三、只是追加了 `Option` 参数（4 条，无需处理）
 
@@ -56,7 +59,11 @@ v4 把裸数组包成了「结果 + 失败列表」，字段本身没改名：
 - 深链接：`peek_pending_deeplink` / `ack_pending_deeplink` / `fetch_deeplink_icon`（无头无深链接入口）
 - 系统对话框与文件选择：`save_file_dialog` / `open_file_dialog` / `open_zip_file_dialog`，
   以及依赖它们的 `export_config_to_file` / `import_config_from_file` / `install_skills_from_zip`
-  → 需要浏览器原生下载/上传桥（限数据目录），任务 #4 处理
+  → **SQL 备份这一对已做（2026-10-25）**：服务端新增 `export_config_sql` / `import_config_sql`
+  （传内容而不是传路径——浏览器给的路径和服务器文件系统本来就不是一个），
+  `web/transport/files.ts` + `core.ts` 的 `LOCAL_COMMANDS` 在页面侧用 `<input type=file>` 收、用 `<a download>` 发。
+  验证见交接文档 §14.3（真浏览器 11/11，含"非备份文件被明确拒绝且数据完好"那条负例）。
+  **仍是桌面专属**：`open_zip_file_dialog`（Skills 导入 ZIP）、`save_markdown_dialog`（会话导出 Markdown）。
 - 自动更新：`check_update` 一类（无头不该自更新）
 - 打开本地路径 / 终端：`open_config_folder`、`open_provider_terminal`、`reveal_*`
   → 服务器上无 GUI，只能返回路径文本

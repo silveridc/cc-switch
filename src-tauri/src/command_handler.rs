@@ -141,7 +141,9 @@ macro_rules! app_invoke_handler {
             $crate::commands::update_providers_sort_order,
             // theirs: config import/export and dialogs
             $crate::commands::export_config_to_file,
+            $crate::commands::export_config_sql,
             $crate::commands::import_config_from_file,
+            $crate::commands::import_config_sql,
             $crate::commands::webdav_test_connection,
             $crate::commands::webdav_sync_upload,
             $crate::commands::webdav_sync_download,
