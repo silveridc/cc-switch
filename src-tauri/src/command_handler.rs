@@ -9,6 +9,7 @@ macro_rules! app_invoke_handler {
             $crate::commands::get_providers,
             $crate::commands::get_current_provider,
             $crate::commands::add_provider,
+            $crate::commands::add_provider_to_live_config,
             $crate::commands::update_provider,
             $crate::commands::get_provider_editor_view,
             $crate::commands::delete_provider,
@@ -149,6 +150,7 @@ macro_rules! app_invoke_handler {
             $crate::commands::webdav_sync_download,
             $crate::commands::webdav_sync_save_settings,
             $crate::commands::webdav_sync_fetch_remote_info,
+            $crate::commands::webdav_sync_clear_settings,
             $crate::commands::s3_test_connection,
             $crate::commands::s3_sync_upload,
             $crate::commands::s3_sync_download,
@@ -197,6 +199,8 @@ macro_rules! app_invoke_handler {
             $crate::commands::get_cc_switch_skills_dir,
             $crate::commands::open_cc_switch_skills_dir,
             $crate::commands::search_skills_sh,
+            $crate::commands::discover_repo_skills,
+            $crate::commands::open_skill_dir,
             // Skill management (legacy API compatibility)
             $crate::commands::get_skills,
             $crate::commands::get_skills_for_app,
@@ -324,6 +328,8 @@ macro_rules! app_invoke_handler {
             // OpenCode specific
             $crate::commands::import_opencode_providers_from_live,
             $crate::commands::get_opencode_live_provider_ids,
+            $crate::commands::get_opencode_default_model,
+            $crate::commands::set_opencode_default_model,
             // OpenClaw specific
             $crate::commands::import_openclaw_providers_from_live,
             $crate::commands::get_openclaw_live_provider_ids,
@@ -400,6 +406,32 @@ macro_rules! app_invoke_handler {
             $crate::commands::delete_daily_memory_file,
             $crate::commands::search_daily_memory_files,
             $crate::commands::open_workspace_directory,
+            // Antigravity (agy) account commands
+            $crate::commands::agy_account_is_running,
+            $crate::commands::agy_account_quota,
+            $crate::commands::get_agy_models,
+            // DeepSeek Harness (dsh) account commands
+            $crate::commands::dsh_account_status,
+            $crate::commands::dsh_account_login_start,
+            $crate::commands::dsh_account_login_poll,
+            $crate::commands::dsh_account_login_cancel,
+            $crate::commands::dsh_account_sign_out,
+            // Kimi Code OAuth commands
+            $crate::commands::kimi_oauth_start,
+            $crate::commands::kimi_oauth_poll,
+            $crate::commands::kimi_oauth_cancel,
+            $crate::commands::kimi_oauth_status,
+            $crate::commands::kimi_oauth_models,
+            $crate::commands::kimi_oauth_quota,
+            $crate::commands::kimi_oauth_remove,
+            $crate::commands::kimi_oauth_use_account,
+            // Claude official subscription accounts
+            $crate::commands::claude_account_submit_paste,
+            $crate::commands::get_claude_account_quota,
+            $crate::commands::get_claude_default_plan,
+            $crate::commands::get_claude_login_switch,
+            // Oh My Pi (omp)
+            $crate::commands::get_omp_current_state,
             // lightweight mode (for testing or low-resource environments)
             $crate::commands::enter_lightweight_mode,
             $crate::commands::exit_lightweight_mode,

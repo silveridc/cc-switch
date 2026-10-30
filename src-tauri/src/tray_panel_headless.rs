@@ -8,6 +8,12 @@ use serde_json::Value;
 #[cfg_attr(not(feature = "desktop"), allow(dead_code))]
 pub const USES_NATIVE_MENU: bool = false;
 
+/// 无头构建没有托盘，也就没有「原生菜单」这回事。
+#[cfg_attr(not(feature = "desktop"), allow(dead_code))]
+pub fn uses_native_menu() -> bool {
+    false
+}
+
 #[tauri::command]
 pub fn tray_panel_state() -> Result<Value, String> {
     Err("无头模式没有托盘面板".into())

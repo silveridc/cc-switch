@@ -231,6 +231,7 @@ pub async fn open_cc_switch_skills_dir(handle: AppHandle) -> Result<bool, String
 }
 
 /// 在系统文件管理器里打开某个已安装 Skill 的主副本目录
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn open_skill_dir(handle: AppHandle, directory: String) -> Result<bool, String> {
     let dir = SkillService::get_installed_skill_dir(&directory).map_err(|e| e.to_string())?;

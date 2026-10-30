@@ -5,6 +5,17 @@
 
 use crate::compat::AppHandle;
 
+// 语言码与「需要路由」判定在托盘之外也用，实现与桌面版共用 tray_logic。
+pub(crate) use crate::tray_logic::{provider_needs_routing, tray_language};
+
+#[cfg_attr(not(feature = "desktop"), allow(dead_code))]
+pub const TRAY_ID: &str = "cc-switch";
+
+pub fn apply_tray_style(_app: &AppHandle) {}
+
+#[cfg_attr(not(feature = "desktop"), allow(dead_code))]
+pub fn handle_tray_icon_event<T, E>(_tray: &T, _event: E) {}
+
 pub fn refresh_tray_menu(_app: &AppHandle) {}
 
 pub fn schedule_tray_refresh(_app: &AppHandle) {}

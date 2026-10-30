@@ -24,7 +24,7 @@ pub async fn claude_account_submit_paste(
 /// 结果按账号写进托盘缓存（同 Codex 托管账号）：卡片和托盘悬停查到的是同一份。
 #[tauri::command(rename_all = "camelCase")]
 pub async fn get_claude_account_quota(
-    app: tauri::AppHandle,
+    app: crate::compat::AppHandle,
     app_state: tauri::State<'_, crate::store::AppState>,
     account_id: String,
 ) -> Result<crate::services::subscription::ClaudeAccountQuota, String> {

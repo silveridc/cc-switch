@@ -1196,6 +1196,7 @@ pub fn clear_codex_unify_migrate_existing() -> Result<(), AppError> {
 }
 
 /// 记下当前是否处于轻量模式（见 [`AppSettings::lightweight_mode`]），值没变就不写盘。
+#[cfg_attr(not(feature = "desktop"), allow(dead_code))]
 pub fn set_lightweight_mode(enabled: bool) -> Result<(), AppError> {
     if get_settings().lightweight_mode == enabled {
         return Ok(());

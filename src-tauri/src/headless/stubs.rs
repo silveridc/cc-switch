@@ -46,6 +46,11 @@ pub async fn open_cc_switch_skills_dir(_handle: AppHandle) -> Result<bool, Strin
 }
 
 #[tauri::command]
+pub async fn open_skill_dir(_handle: AppHandle, _directory: String) -> Result<bool, String> {
+    Err(no_gui("打开技能目录"))
+}
+
+#[tauri::command]
 pub async fn open_workspace_directory(_handle: AppHandle, _subdir: String) -> Result<bool, String> {
     Err(no_gui("打开工作区目录"))
 }

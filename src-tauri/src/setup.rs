@@ -34,7 +34,7 @@ use crate::AppState;
 use crate::SkillService;
 use std::sync::Arc;
 #[cfg(feature = "desktop")]
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 #[cfg(feature = "desktop")]
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -92,6 +92,9 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         log::set_max_level(log::LevelFilter::Info);
         log::info!("=== CC Switch v{} started ===", env!("CARGO_PKG_VERSION"));
     }
+
+    #[cfg(unix)]
+    crate::raise_open_file_limit();
 
     // 首次读取覆盖路径时 logger 尚未可用；此处重放一次，
     // 让 Store 损坏或路径无效等启动警告能够真正落盘。
@@ -353,6 +356,10 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         }
     }
 
+    if let Err(error) = crate::services::provider::initialize_dsh_profiles(&app_state) {
+        log::warn!("Initializing DeepSeek Harness profiles failed: {error}");
+    }
+
     match app_state.db.init_default_official_providers() {
         Ok(count) if count > 0 => {
             log::info!("✓ Seeded {count} official provider(s)");
@@ -485,6 +492,13 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         }
         Ok(_) => log::debug!("○ No Pi provider changes from native config"),
         Err(e) => log::warn!("✗ Failed to import Pi providers: {e}"),
+    }
+    match crate::services::provider::import_omp_providers_from_live(&app_state) {
+        Ok(count) if count > 0 => {
+            log::info!("✓ Synced {count} Oh My Pi provider(s) from native config");
+        }
+        Ok(_) => log::debug!("○ No Oh My Pi provider changes from native config"),
+        Err(e) => log::warn!("✗ Failed to import Oh My Pi providers: {e}"),
     }
 
     // 2. OMO 配置导入（当数据库中无 OMO provider 时，从本地文件导入）
@@ -639,6 +653,9 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
 
     // 启动阶段不再无条件保存,避免意外覆盖用户配置。
 
+    // 冷启动深链接是否已处理：决定轻量模式启动后要不要保持不变（无头端不用这个变量）。
+    #[cfg_attr(not(feature = "desktop"), allow(unused_mut, unused_variables))]
+    let mut startup_deeplink = false;
     // 深链接依赖 tauri-plugin-deep-link，只有桌面构建注册；无头端由 Web 界面直接操作。
     #[cfg(feature = "desktop")]
     {
@@ -713,6 +730,7 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
             Ok(Some(urls)) => {
                 for url in urls {
                     if handle_deeplink_url(app.handle(), url.as_str(), true, "get_current") {
+                        startup_deeplink = true;
                         break;
                     }
                 }
@@ -722,45 +740,20 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         }
     }
 
-    // 构建托盘：macOS / Windows 点图标（左右键）弹出托盘面板，不挂原生菜单；
+    // 构建托盘：Windows 左键打开主界面，右键默认弹出面板；macOS 左右键默认都弹出面板。
+    // 设置里打开「原生托盘菜单」就挂原生菜单（`tray::apply_tray_style` 运行时切换）。
     // Linux（AppIndicator）不派发点击事件，只能出原生菜单，菜单里有一项打开面板。
     #[cfg(feature = "desktop")]
     {
+        let native_menu = tray_panel::uses_native_menu();
         let mut tray_builder = TrayIconBuilder::with_id(tray::TRAY_ID)
             .tooltip("CC Switch") // 鼠标悬停提示
-            .on_tray_icon_event(|tray, event| {
-                if let TrayIconEvent::Click {
-                    button: tauri::tray::MouseButton::Left | tauri::tray::MouseButton::Right,
-                    button_state: tauri::tray::MouseButtonState::Up,
-                    rect,
-                    ..
-                } = &event
-                {
-                    tray_panel::toggle(tray.app_handle(), rect);
-                    return;
-                }
-                match &event {
-                    // 鼠标悬停/点击到托盘图标时，后台异步刷新用量缓存，
-                    // 让用户下一次（或快速打开菜单的那一刻）看到较新的数字。
-                    // refresh_all_usage_in_tray 内部有 10 秒防抖。
-                    TrayIconEvent::Enter { .. } | TrayIconEvent::Click { .. } => {
-                        let app = tray.app_handle().clone();
-                        // 悬停时菜单还没打开：问题区该出现 / 消失了就趁这时重建。
-                        if matches!(event, TrayIconEvent::Enter { .. }) {
-                            tray::refresh_tray_if_problems_changed(&app);
-                        }
-                        tauri::async_runtime::spawn(async move {
-                            crate::tray::refresh_all_usage_in_tray(&app).await;
-                        });
-                    }
-                    _ => log::debug!("unhandled event {event:?}"),
-                }
-            })
+            .on_tray_icon_event(tray::handle_tray_icon_event)
             .on_menu_event(|app, event| {
                 tray::handle_tray_menu_event(app, &event.id.0);
             })
-            .show_menu_on_left_click(tray_panel::USES_NATIVE_MENU);
-        if tray_panel::USES_NATIVE_MENU {
+            .show_menu_on_left_click(tray::native_menu_on_left_click(native_menu));
+        if native_menu {
             let menu = tray::create_tray_menu(app.handle(), &app_state)?;
             tray_builder = tray_builder.menu(&menu);
         }
@@ -771,12 +764,15 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         }
 
         let _tray = tray_builder.build(app)?;
+        #[cfg(target_os = "windows")]
+        crate::tray_compat::install(app.handle());
     }
 
     crate::services::webdav_auto_sync::start_worker(app_state.db.clone(), app.handle().clone());
     crate::services::s3_auto_sync::start_worker(app_state.db.clone(), app.handle().clone());
     // 将同一个实例注入到全局状态，避免重复创建导致的不一致
     app.manage(app_state);
+    app.manage(crate::services::kimi_oauth::KimiOAuthManager::default());
 
     // 初始化 SkillService
     let skill_service = SkillService::new();
@@ -815,6 +811,28 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         let xai_oauth_manager = XaiOAuthManager::new(app_config_dir);
         app.manage(XaiOAuthState(Arc::new(RwLock::new(xai_oauth_manager))));
         log::info!("✓ XaiOAuthManager initialized");
+    }
+
+    // Antigravity 官方账号（授权中心加号、切 agy 的全局登录）
+    {
+        use crate::services::agy_account::AgyAccountManager;
+        let manager = AgyAccountManager::new(crate::config::get_app_config_dir());
+        app.manage(commands::AgyAccountState(Arc::new(manager)));
+    }
+
+    // Claude Code 官方订阅账号（授权中心加号；每个账号一个 CLAUDE_CONFIG_DIR）
+    {
+        use crate::services::claude_account::ClaudeAccountManager;
+        let data_dir = crate::config::get_app_config_dir();
+        let manager = ClaudeAccountManager::new(data_dir.clone());
+        app.manage(commands::ClaudeAccountState(Arc::new(manager)));
+        let db = app.state::<AppState>().db.clone();
+        std::thread::spawn(move || {
+            // 上次切换登录时崩溃、断电：先补完（配置操作在前面已补完，指针已落定）
+            crate::services::provider::claude_official::recover_login_switch(&db);
+            // 默认目录的设置、MCP 可能在 CC Switch 没运行时改过
+            crate::services::claude_account::sync_all_shared(&data_dir)
+        });
     }
 
     // 初始化全局出站代理 HTTP 客户端
@@ -863,6 +881,10 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         // 定下各应用的直连 / 代理模式（处理旧版遗留的接管状态），再把代理模式的
         // 应用接上。要排在通用配置片段的自动提取之后：它读的是直连的 live。
         crate::mode::controller::startup(&state).await;
+        // #8268 测试版给 agy 装过包装脚本、改过 shell 启动文件，撤掉带标记的部分。
+        if let Err(e) = crate::services::provider::agy_direct::migrate_legacy_launcher(&state.db) {
+            log::warn!("清理旧版 agy 启动器失败: {e}");
+        }
         // 启动流程走完：托盘这时才开始报「路由服务没在运行」，并记下退回直连的应用。
         crate::tray::mark_startup_settled(&app_handle);
         // Codex 官方做路由、发布了 Stack 模型时，官方模型列表过期就在后台刷新。
@@ -980,7 +1002,14 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
                 let _ = window.set_decorations(false);
                 let _ = window.set_shadow(true);
             }
-            if settings.silent_startup {
+            // 上次退出时在轻量模式：照旧只留托盘。由深链接冷启动的要给用户看导入对话框，正常启动。
+            if settings.lightweight_mode && !startup_deeplink {
+                if let Err(e) = crate::lightweight::enter_lightweight_mode(app.handle()) {
+                    log::error!("启动时恢复轻量模式失败: {e}");
+                } else {
+                    log::info!("上次退出时在轻量模式，启动后已恢复");
+                }
+            } else if settings.silent_startup {
                 // 静默启动模式：保持窗口隐藏
                 let _ = window.hide();
                 #[cfg(target_os = "windows")]
