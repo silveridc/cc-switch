@@ -94,6 +94,7 @@ fn account_label(id: &str, email: Option<&str>, org_name: Option<&str>) -> Strin
 }
 
 /// 按磁盘上的账号表给出每个账号的显示名（同 [`ClaudeAccount::label`]）：托盘拿不到管理器时用。
+#[cfg_attr(not(feature = "desktop"), allow(dead_code))]
 pub fn labels_on_disk(data_dir: &Path) -> HashMap<String, String> {
     load_store(data_dir)
         .accounts
