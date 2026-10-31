@@ -1601,6 +1601,9 @@ git -c http.proxy=http://127.0.0.1:7891 fetch https://github.com/farion1231/cc-s
 | `links-e2e` | **3/3**（关于页与 `open_external` 都指向 fork） |
 | `browser-e2e` | **16/16**（21 次 invoke 全成功、SSE 两帧、倍率往返、定价面板文案） |
 
+**第二次合并后的复验（`cf9a25ba` 之后重编了无头调试二进制）**：`cargo check` 两档、`cargo fmt --check` 仍通过，
+重跑三套 E2E 仍是 **11/11 / 3/3 / 16/16**。
+
 **没跑的**：`cargo test`（全量 3700+ 个用例，合并后没跑）；`release.yml` 的桌面打包。要推之前建议补跑一次 `cargo test`。
 
 ### 18.4 合并后的形态
