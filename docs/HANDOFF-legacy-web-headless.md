@@ -1565,6 +1565,9 @@ git -c http.proxy=http://127.0.0.1:7891 fetch https://github.com/farion1231/cc-s
 | `2dddd7b9` | 先把 §13–§16 的未提交改动落成一个检查点（28 个文件，1315+/423-） |
 | `b0ff3759` | `merge: upstream v4.0.22 (7569b27a)` —— 590 个文件，74082+/8740- |
 | `bc4d82b6` | `fix(merge)` 适配层：无头/兼容层要跟着改的部分（见 18.3） |
+| `ca4a1577` | 文档：本节 + `tools/cmd-compat.md` 计数 |
+| `cf9a25ba` | 第二次合上游：`7569b27a..91a76cfd`（v4.0.22 之后 8 个 fix），**零冲突**；上游只新增了 dev-dependency `tauri/test` |
+| `37df985e` | `fix(merge)`：`claude_account::labels_on_disk` 只被桌面托盘用到，无头档补 `allow(dead_code)` |
 
 合并的是 `refs/upstream/main`（`7569b27a`，比 `v4.0.22` tag 多 8 个提交），基线是共同祖先 `77c6dc79`。
 
@@ -1611,4 +1614,8 @@ git -c http.proxy=http://127.0.0.1:7891 fetch https://github.com/farion1231/cc-s
 1. **DB v23 → v24**：上游加了 MCP/Skills 的 DeepSeek Harness 开关列。升级自动备份，但**退回旧二进制会打不开**。14515 现在是 v23 的库，装了合并后的二进制首次启动会迁移。
 2. **`release.yml` 新增了 MSI 守卫**：要求 MSI 的 Property 表里有 `REBOOT=ReallySuppress`，否则构建失败（上游 #8534）。我们那条 `build-artifacts.yml` 不受影响；但如果哪天用 `release.yml` 打旧 UI 的 MSI，得先确认 `tauri.legacy.conf.json` 的 bundle 设置满足这条。
 3. **EL9 单二进制与 14515 服务还是合并前的产物**（`1377a492…`，v4.0.15 后端）。要跟上的话得重编一次（约 40 分钟，`systemd-run` 那个流程，见 §16.2）再 `install` + `systemctl restart`。
-4. 合并分支**没有推送**，也没动 `main`（`main` 仍是 `b7f1e6b1`）。
+4. 合并分支**已推送**到 origin（`refs/heads/zhaoyj7/merge-upstream-4.0.22-20261030` = `37df985e`），
+   `main` 没动（仍是 `b7f1e6b1`）。**push 到特性分支不会触发 `ci.yml`**（它只认 push 到 main 和指向 main 的 PR），
+   所以远端目前没有跑过任何 CI。push 命令要走代理（`git -c http.proxy=http://127.0.0.1:7891 push`），
+   直连会在 21 秒后报 `Could not connect to server`；另外 `git push | tail` 拿到的是 `tail` 的退出码（0），
+   别用它判断成败——要看 `git ls-remote`。
