@@ -28,8 +28,31 @@ pub const PANEL_LABEL: &str = "tray-panel";
 pub const OPEN_PANEL_ID: &str = "panel:open";
 /// 点托盘图标出原生菜单还是面板。Linux 只能出原生菜单；其它平台默认出面板，
 /// 设置里打开「原生托盘菜单」（`native_tray_menu`）就挂回原生菜单，不再出面板。
+/// 内嵌前端没有面板入口（旧 UI 构建）时也只能出原生菜单，否则右键会去开一个空窗口。
 pub fn uses_native_menu() -> bool {
-    cfg!(target_os = "linux") || crate::settings::get_settings().native_tray_menu
+    cfg!(target_os = "linux")
+        || !PANEL_ASSET_PRESENT.load(Ordering::Relaxed)
+        || crate::settings::get_settings().native_tray_menu
+}
+
+/// 面板入口（`tray-panel.html`）在不在。默认 true：非桌面构建不会走到这里。
+static PANEL_ASSET_PRESENT: AtomicBool = AtomicBool::new(true);
+
+/// 建托盘之前调用一次：按内嵌前端是否带面板入口决定右键出面板还是原生菜单。
+pub fn note_panel_assets(app: &AppHandle) {
+    let resolver = app.asset_resolver();
+    // `get()` 找不到文件会逐级回退到 index.html，所以「有没有这个入口」只能靠
+    // 两者字节是否相同来判断，不能只看 Option 是不是 Some。
+    let index = resolver.get("index.html".to_string());
+    let panel = resolver.get("tray-panel.html".to_string());
+    let present = match (index, panel) {
+        (Some(index), Some(panel)) => index.bytes != panel.bytes,
+        _ => false,
+    };
+    PANEL_ASSET_PRESENT.store(present, Ordering::Relaxed);
+    if !present {
+        log::info!("内嵌前端没有 tray-panel.html（旧 UI 构建），托盘右键改用原生菜单");
+    }
 }
 
 /// 弹出前发给面板：带上这次的方位，前端据此排版后回报尺寸（`tray_panel_layout`）。

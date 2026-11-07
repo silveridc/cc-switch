@@ -747,6 +747,7 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
     // Linux（AppIndicator）不派发点击事件，只能出原生菜单，菜单里有一项打开面板。
     #[cfg(feature = "desktop")]
     {
+        tray_panel::note_panel_assets(app.handle());
         let native_menu = tray_panel::uses_native_menu();
         let mut tray_builder = TrayIconBuilder::with_id(tray::TRAY_ID)
             .tooltip("CC Switch") // 鼠标悬停提示
