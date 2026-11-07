@@ -375,6 +375,65 @@ try {
   );
   check("倍率已复位为 1", restored === "1", String(restored));
 
+  // §13.8：v4 后端在消息带 blocks 时不下发 content，旧前端读 content.slice() 必崩。
+  // 崩溃发生在消息行渲染，所以必须真的点开一条会话，停在列表页证明不了任何事。
+  // 前面几步把视图切到了设置页，而「会话管理」入口只在主视图的图标条里，所以借
+  // 旧前端自己的视图持久化（App.tsx:150 的 cc-switch-last-view）重载直落到会话页。
+  await evaluate(
+    cdp,
+    sessionId,
+    `localStorage.setItem("cc-switch-last-view", "sessions"); location.reload(); "reloading"`
+  );
+  await sleep(4000);
+  const sessionsView = await evaluate(
+    cdp,
+    sessionId,
+    `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const fire = (el) => {
+        const b = el.getBoundingClientRect();
+        const o = { bubbles: true, cancelable: true, view: window, button: 0,
+          clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 };
+        for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"])
+          el.dispatchEvent(type.startsWith("pointer") ? new PointerEvent(type, o) : new MouseEvent(type, o));
+      };
+      for (let i = 0; i < 60 && !document.querySelector("#root button"); i++) await sleep(100);
+      const dialog = document.querySelector('[role="dialog"] button, [role="alertdialog"] button');
+      if (dialog) fire(dialog);
+      await sleep(800);
+      // 会话行 = SessionItem 里那个 className="min-w-0 flex-1 text-left" 的按钮
+      const rows = () => [...document.querySelectorAll("button")].filter((b) => b.querySelector("span.line-clamp-2"));
+      for (let i = 0; i < 60 && rows().length === 0 && !document.querySelector('[role="alert"]'); i++) await sleep(100);
+      const boundary = () => document.querySelector('[role="alert"]')?.textContent?.trim() ?? null;
+      const list = rows();
+      const out = { sessions: list.length, boundaryOnList: boundary(), rendered: 0, empty: 0, boundaryAfterOpen: null };
+      if (list.length === 0) return out;
+      fire(list[0]);
+      for (let i = 0; i < 90 && document.querySelectorAll("[data-index]").length === 0 && !boundary(); i++) await sleep(100);
+      const msgRows = [...document.querySelectorAll("[data-index]")];
+      out.rendered = msgRows.length;
+      out.empty = msgRows.filter((r) => r.textContent.trim() === "").length;
+      out.sample = msgRows[0]?.textContent.trim().slice(0, 70) ?? null;
+      out.boundaryAfterOpen = boundary();
+      return out;
+    })()`
+  );
+  check(
+    "会话管理页列出本机真实会话",
+    (sessionsView?.sessions ?? 0) > 0,
+    JSON.stringify(sessionsView)
+  );
+  check(
+    "会话页没有落到错误边界（§13.8 的崩溃点）",
+    !sessionsView?.boundaryOnList && !sessionsView?.boundaryAfterOpen,
+    String(sessionsView?.boundaryAfterOpen ?? sessionsView?.boundaryOnList)
+  );
+  check(
+    "会话消息行渲染出来了，且每行都有正文（content 由 blocks 补上）",
+    (sessionsView?.rendered ?? 0) > 0 && sessionsView.empty === 0,
+    JSON.stringify({ rendered: sessionsView.rendered, empty: sessionsView.empty, sample: sessionsView.sample })
+  );
+
   const noisy = consoleErrors.filter((t) => !/favicon|ResizeObserver/i.test(t));
   const otherFailed = failedRequests.filter((u) => !/favicon/i.test(u));
   check(

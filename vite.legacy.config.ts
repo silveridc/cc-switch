@@ -8,7 +8,8 @@ import autoprefixer from "autoprefixer";
  * 旧版（v3.20.4）前端的构建配置。
  *
  * `--mode web` 时把 @tauri-apps/* 换成 web/transport 下的 shim，同一份 src-legacy
- * 代码即可在浏览器里跑；默认（桌面模式）继续用原生 @tauri-apps 包。
+ * 代码即可在浏览器里跑；桌面模式只把 `@tauri-apps/api/core` 换成同一个适配层
+ * （invoke 仍走上游 IPC，只补旧前端的响应契约），其余包保持原生。
  * src-legacy 保持与 v3.20.4 逐字节一致，所有适配都发生在这里和 shim 里。
  */
 const API_ORIGIN = process.env.CC_API_ORIGIN ?? "http://127.0.0.1:14515";
@@ -86,7 +87,14 @@ export default defineConfig(({ mode }) => {
           find: /^@\//,
           replacement: `${path.resolve(__dirname, "src-legacy").replace(/\\/g, "/")}/`,
         },
-        ...(webTransport ? webAliases : []),
+        ...(webTransport
+          ? webAliases
+          : [
+              {
+                find: /^@tauri-apps\/api\/core$/,
+                replacement: `${SHIM_DIR}/desktop-core.ts`,
+              },
+            ]),
       ],
     },
     clearScreen: false,
