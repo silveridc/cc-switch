@@ -3,7 +3,7 @@
 > 写给下一位接手的 AI/工程师。读完这一份就能接着干，不需要翻历史对话。
 > 所有"已验证"的结论都标了复现命令；标"未验证/推断"的不要当事实用。
 
-**当前状态（2026-10-21 收尾；2026-10-22 追加 §11 只读评审 + §12 本地干净克隆实测与新工作流 + §13 桌面版旧 UI；2026-10-24 追加 §13.9 无头二进制重编与 CLI 侧复验；2026-10-25 追加 §13.10 EL9 产物重编 + §13.11 本机 WSL 实部署 + §14 浏览器导入导出 + §15 链接归属 + §16 格式化与 EL9 二次重编部署）**：
+**当前状态（2026-10-21 收尾；2026-10-22 追加 §11 只读评审 + §12 本地干净克隆实测与新工作流 + §13 桌面版旧 UI；2026-10-24 追加 §13.9 无头二进制重编与 CLI 侧复验；2026-10-25 追加 §13.10 EL9 产物重编 + §13.11 本机 WSL 实部署 + §14 浏览器导入导出 + §15 链接归属 + §16 格式化与 EL9 二次重编部署；2026-10-30 追加 §17 上游盘点 + §18 合上游 v4.0.22；2026-11-01 追加 §19 本机 release 单二进制试玩；2026-11-05 追加 §20 桌面版 release 产物 + 一起沙箱没挡住真实库的事故 + §20.5 直接部署真实环境 + §20.6 会话页崩溃按 §13.8 ① 修好 + §20.7 浏览器版重编与 Inno 安装包）**：
 - 旧前端已在真浏览器里跑通：E2E **16/16**（`stream_check.rs:48` 改动后重编二进制、重启服务又跑了两遍，§3.5）。
 - Rust 全量单测 **3763 通过 / 0 失败 / 11 ignored**（要带 `NO_PROXY=127.0.0.1,localhost`，之前那两个"失败"
   是本机 Windows 系统代理造成的假失败，根因与对照实验见 §3.5 备注）。
@@ -22,9 +22,8 @@
 ③ §13.6 末尾那条"两套 UI 的 MSI 同名"要不要区分，是交付形态决策，等你拍板；
 ④ 要不要给 `ci.yml` 补一条 **headless 特性的 clippy**（这次就是它抓不到 `headless/server.rs:181` 的空转换，§13.6）——
 动现有 CI 门，也等你拍板；
-⑤ **§13.8 会话管理页必崩**（v4 有 blocks 就不下发 `content`，旧 UI 直接 `undefined.slice`）选 ①/②/③，
-推荐 ①（传输层补字段，顺带修掉 web 版和无头版页面的同一个崩溃）——**"顺带修掉"这句现在是实测不是推断了**，
-web/无头侧同样崩，见 §13.9 最后一条；
+⑤ ~~**§13.8 会话管理页必崩**~~ **2026-11-05 已按推荐的 ①（传输层补字段）修好并真机复验**，
+桌面版当场就能开会话页了；web/无头侧同一份适配，**`dist-legacy` 与 Windows 无头 exe 也已于 11-05 13:05 重编并 19/19 复验**；剩下 EL9 单二进制与容器镜像仍是修复前产物，见 §20.6 / §20.7；
 ⑥ §13.7 修完 CSS 之后，**EL9 单二进制 / 容器镜像 / 旧 UI 的 MSI 全是修复前的产物**，要不要现在重编三连
 → **Windows 无头 release（§13.9）与 EL9 原生单二进制（§13.10，就是要丢服务器的那个文件）都已重编并复验**；
 剩下的只有容器镜像 `:dev`、旧 UI 的 MSI、桌面 release `target/release/cc-switch.exe`。
@@ -40,6 +39,22 @@ web/无头侧同样崩，见 §13.9 最后一条；
 > **2026-10-25 最终（以这条为准）**：EL9 单二进制再重编并**已装进本机 WSL 的 14515 服务**（§16.2/§16.3），
 > sha256 `1377a492…`（39,044,280 B）取代 `11931503…`；这一版同时含 §14（浏览器导入导出）与 §15（链接归属），
 > 在隔离实例上跑 `io-e2e` **11/11**、`links-e2e` **3/3**、`browser-e2e` **16/16**。旧二进制留了备份，见 §16.3。
+> **2026-10-30 / 11-01 再看一眼**：上游已合到 **v4.0.22**（§18，分支 `zhaoyj7/merge-upstream-4.0.22-20261030` = `ef595e0a`，已推送），
+> 本机 Windows 上跑的是**合并后的 release 单二进制**（§19，sha256 `84061cc9…`，`browser-e2e` 16/16 就在它上面跑的）；
+> **WSL 14515 那个服务还是合并前的 `1377a492…`（v4.0.15 / DB v23）**，两边现在不是一个版本。
+> **2026-11-05 桌面版（看这里，§20）**：Windows 桌面旧 UI 的 release 产物重编好了 —— `target/release/cc-switch.exe`
+> sha256 `90514e95…`（47,406,080 B）+ MSI `1834f39b…`（**没装，也不建议装**，identifier 和官方版同名）；
+> 先在 `.ci-sandbox/desktop-play` 沙箱 home 上复验过（种子=用户真实库 v20 的完整副本），`desktop-cdp-check` 13/13；
+> 11-05 11:06 又按用户要求**直接部署到真实环境**（不设沙箱变量，pid 728，§20.5：真实库合法迁到 v24，回退文件已留）。
+> 同一节还记了一起**沙箱没挡住真实库**的事故（`.ps1` 中文注释吞掉环境变量赋值 → 真实库被迁 v24 并裁剪日志），
+> **已用应用自己的 01:57:57 备份逐字节回滚**（sha256 `69a869f1…`），`~/.claude` 全程没动过。
+> **同日 12:20 用户真点出 §13.8 那个会话管理页崩溃**（切换本身两次都成功），12:47 按 §13.8 ① 修好重编交付，
+> 新 exe sha256 `c476b97e…`，会话页 194 条消息正常显示、`desktop-cdp-check` 13/13 —— 细节 §20.6。
+> **同日 13:34 浏览器版也重编好了**（`dist-legacy` → `index-tuveGerf.js` + 内嵌它的 `cc-switch-server.exe` `9ff95c03…`，
+> `tools/browser-e2e.mjs` 加了 3 条会话页断言，**19/19**），并新增一个 **Inno Setup 安装包**
+> `installer/Output/cc-switch-legacy-4.0.22-x64-setup.exe`（13.5 MB，`71091f85…`，AppId/显示名/目录都和官方版不同，
+> 装+卸都在本机真验过）—— 细节 §20.7。EL9 产物与容器镜像仍是修复前的。
+> §19 那个 14540 无头服务此刻**没在跑**。
 
 ---
 
@@ -1128,7 +1143,7 @@ STEP1 单独跑在 `legacy-msi-retry3.ps1` / `tools/msi3.log`）。
 1m18s，exit 0）后真机截图：加号是**橙色圆 + 白色加号**，开关轨道是**灰色**（`.ci-sandbox/after-cssfix-full.png`、
 `after-header-left.png`、`after-header-right.png`）。
 
-## 13.8 会话管理页在 v4 后端上必崩：有 blocks 时不下发 `content`（**未修，等你拍板**）
+## 13.8 会话管理页在 v4 后端上必崩：有 blocks 时不下发 `content`（**2026-11-05 已按 ① 修好，见 §20.6**）
 
 **症状**：整页换成根错误边界，文案"界面遇到了问题 / 重新加载界面"，日志里
 `TypeError: Cannot read properties of undefined (reading 'slice')`（`.ci-sandbox/desktop-home/logs/cc-switch.log`，
@@ -1156,7 +1171,7 @@ STEP1 单独跑在 `legacy-msi-retry3.ps1` / `tools/msi3.log`）。
 **三条路，我没动代码**：
 | | 做法 | 代价 |
 |---|---|---|
-| ① 传输层补字段（推荐） | legacy 构建里把 `@tauri-apps/api/core` 包一层：web mode 已有 shim，桌面 mode 也加同一个 alias，`invoke("get_session_messages")` 回来后从 `blocks` 拼纯文本填进 `content` | 一处小改；src-legacy 零改动、后端零改动、不影响新 UI；**同一个改动顺手修掉 web 版/无头版页面的同一个崩溃** |
+| ① 传输层补字段（推荐）**← 2026-11-05 按这条做了，见 §20.6** | legacy 构建里把 `@tauri-apps/api/core` 包一层：web mode 已有 shim，桌面 mode 也加同一个 alias，`invoke("get_session_messages")` 回来后从 `blocks` 拼纯文本填进 `content` | 一处小改；src-legacy 零改动、后端零改动、不影响新 UI；**同一个改动顺手修掉 web 版/无头版页面的同一个崩溃** |
 | ② 后端为旧客户端始终下发 `content` | 需要区分"谁在调"（参数/头/新命令），动共享命令的响应 | 破坏 v4 那次省 1/4 payload 的优化意图，改动面最大 |
 | ③ 记为已知限制 | 旧 UI 里"会话管理"不可用 | 用户能感知的功能缺失，§11 要加一条 |
 
@@ -1617,8 +1632,258 @@ git -c http.proxy=http://127.0.0.1:7891 fetch https://github.com/farion1231/cc-s
 1. **DB v23 → v24**：上游加了 MCP/Skills 的 DeepSeek Harness 开关列。升级自动备份，但**退回旧二进制会打不开**。14515 现在是 v23 的库，装了合并后的二进制首次启动会迁移。
 2. **`release.yml` 新增了 MSI 守卫**：要求 MSI 的 Property 表里有 `REBOOT=ReallySuppress`，否则构建失败（上游 #8534）。我们那条 `build-artifacts.yml` 不受影响；但如果哪天用 `release.yml` 打旧 UI 的 MSI，得先确认 `tauri.legacy.conf.json` 的 bundle 设置满足这条。
 3. **EL9 单二进制与 14515 服务还是合并前的产物**（`1377a492…`，v4.0.15 后端）。要跟上的话得重编一次（约 40 分钟，`systemd-run` 那个流程，见 §16.2）再 `install` + `systemctl restart`。
-4. 合并分支**已推送**到 origin（`refs/heads/zhaoyj7/merge-upstream-4.0.22-20261030` = `37df985e`），
+4. 合并分支**已推送**到 origin（`refs/heads/zhaoyj7/merge-upstream-4.0.22-20261030` = `ef595e0a`，
+   两轮上游合并 `b0ff3759` + `cf9a25ba` 都在里面），
    `main` 没动（仍是 `b7f1e6b1`）。**push 到特性分支不会触发 `ci.yml`**（它只认 push 到 main 和指向 main 的 PR），
    所以远端目前没有跑过任何 CI。push 命令要走代理（`git -c http.proxy=http://127.0.0.1:7891 push`），
    直连会在 21 秒后报 `Could not connect to server`；另外 `git push | tail` 拿到的是 `tail` 的退出码（0），
    别用它判断成败——要看 `git ls-remote`。
+
+---
+
+## 19. 部署到本机给用户玩（2026-11-01，用户："部署到我电脑上让我玩玩"）
+
+**形态**：Windows 无头 **release 单二进制**（页面编译期内嵌）+ 默认浏览器打开 `http://127.0.0.1:14540/`。
+不是 MSI，**不装、不覆盖、不杀**用户自己装的 `C:\Users\admin\AppData\Local\Programs\CC Switch\cc-switch.exe`
+（实测当时进程列表里只有我们仓库的那个 server，用户的应用没在跑）。
+
+### 19.1 重编与产物
+
+| 项 | 结果 | 复现 |
+| --- | --- | --- |
+| release 重编 | `Finished 'release' profile [optimized] target(s) in 4m 33s` | `.ci-sandbox/build-release-io.ps1`（detached `Start-Process`，日志 `.ci-sandbox/headless-release.{out,err}.log`），里面就是 §13.9 那条 `tools/rust.cmd build --release --no-default-features --features headless --bin cc-switch-server` |
+| 产物 | `src-tauri/target/release/cc-switch-server.exe` **45,644,800 B**，sha256 `84061cc9d566584ff1a27c905083a07df4d14489493cd5007aeadb68ae942452` | `sha256sum` |
+| 作废 | §13.9 那个 41,938,432 B / `e48abf7f…`（2026-10-24）是**合并前 v4.0.15** 的产物，别再发出去 | mtime + 下面的内嵌核验 |
+
+**内嵌页面核验**（release 把 `../dist-legacy` 编译期内嵌，只能 grep 二进制，不能看磁盘目录）：
+`grep -aoc` 命中 `index-CqlT7Op1.js`=2、`index-Bxf3F2jj.css`=2、`import_config_sql`=3、`备份内容已失效`=1、
+`silveridc`=1、`bg-orange-500` 有、`4.0.22`=13；**旧的 `index-0hufZJV7.js` 已经不在**。
+也就是说 §13.7 的 CSS 修复、§14 的导入导出、§15 的链接归属、§18 的 v4.0.22 后端**全在这一个文件里**。
+`dist-legacy` 本身仍是 2026-10-25 21:15 那次 `pnpm build:legacy:web` 的产物（三条标记同样命中），前端这次没重编。
+
+### 19.2 跑起来 + 验证
+
+- `.ci-sandbox/launch-io.ps1` 加了 `-Exe` 参数（默认还是 debug 产物），换二进制不用改脚本。
+- 换人值班：先按 `ExecutablePath like 'D:\projects\ccs\src-tauri\target\debug\*'` **精确**杀掉我自己起的 debug 实例（pid 54744），
+  再 `launch-io.ps1 -Exe …\target\release\cc-switch-server.exe` → pid 39236。
+- `/api/meta` → `{"version":"4.0.22","homeDir":"D:\\projects\\ccs\\.ci-sandbox\\io-home","os":"windows","arch":"x86_64","authRequired":false}`；
+  `GET /` 200、`GET /assets/index-CqlT7Op1.js` 200（4,614,931 B）；`POST /api/invoke` 只读两条（`is_lightweight_mode`、`list_db_backups`）正常。
+- `node tools/browser-e2e.mjs http://127.0.0.1:14540/` → **16/16**。
+  这条是**新增证据**：之前那两轮 16/16 跑在 debug 产物上，这次跑在 release 单二进制上（§13.9 当年只测了 CLI/HTTP 侧）。
+
+### 19.3 「在这套里点按钮是安全的」现在是实测不是推断
+
+数据目录是沙箱 `.ci-sandbox/io-home`（6 个供应商、235 条默认模型定价、4 个 skill 仓库、10 个 DB 备份）。
+`POST /api/invoke {"cmd":"get_claude_code_config_path"}` 实测返回
+`D:\\projects\\ccs\\.ci-sandbox\\io-home\\.claude\\settings.json`，`get_claude_config_status` 里 `exists:false`
+——`CC_SWITCH_TEST_HOME` 把 home 整个重定向了，所以**点「启用 / 切换」写的是沙箱，不会动用户真实的 `~/.claude/settings.json`**。
+（§13 时期这条只是从 `config.rs:78` 的 `test_home_override()` 推断出来的。）
+
+⚠️ 这条断言成立的前提是**启动脚本真的把 `CC_SWITCH_TEST_HOME` 设上了**，脚本坏掉时它一声不响地退回真实 home —— §20.2 就是一起这么发生的事故。所以每次交付前都要重新探针复验，不要引用本文档的旧结论。
+
+**仍然别点的**：关于页的 `更新到 v4.0.x` / `全部升级` / `install_update_and_restart`——那些跑的是 updater 和 CLI 升级，
+属于全局影响，跟数据目录无关。
+
+### 19.4 遗留
+
+- 双击入口：`src-tauri/target/release/run-local.bat`（在 gitignore 的 `target/` 里，不设 PATH、不带安装）。
+- `cargo test` 全量**依旧没跑**；EL9 单二进制与 14515 服务仍是合并前产物（§18.5 第 3 条）；
+  容器镜像 `localhost/cc-switch-server:dev`、旧 UI 的 MSI、`target/release/cc-switch.exe`、`dist-legacy-desktop` 也都还是旧的。
+
+### 19.5 把用户自己的配置导进这套实例（2026-11-01，用户："把我的文件导入进去我用用看看"）
+
+**做法**（全程只读用户的原始文件，原始 DB 一个字节没动：`C:\Users\admin\.cc-switch\cc-switch.db` 仍是 11,235,328 B / mtime 2026-10-25 01:23）：
+
+1. 复制一份用户的 DB 到临时 home `.ci-sandbox/dump-home/`，用 §19.1 那个 release 二进制起一个**临时实例**（端口 14543，`CC_SWITCH_TEST_HOME` + `--data-dir` 都指过去）；
+2. 在这个临时实例上调 `export_config_sql`（应用自己的导出器，不要手写 dump），拿到 4,293,846 字符的 SQL；
+3. 把这段 SQL 用 `import_config_sql` 灌进 14540（就是 §14 那条链路），返回 `{"success":true,...,"backupId":"db_backup_20261101_015834"}`；
+4. 关掉临时实例并删掉 `dump-home`，只留主实例。
+
+**结果核对**（`select count(*)` 对照，沙箱 vs 用户真实库）：`providers 9=9`、`mcp_servers 1=1`、`skills 2=2`、`settings 8=8` —— 用户的全部供应商（Claude Official / DeepSeek / 中转 / api / test / Google Official / Claude Desktop Official / existing-hermes）现在都在 14540 里，`get_providers{app:"claude"}` 实测返回的 `settingsConfig` 就是他们自己的那份。
+
+**顺带测出的两条真实结论**（都不是我们的导入链路的问题）：
+
+- **导出→导入往返是无损的**：导入后的沙箱库与导出源库在每张表上的行数**完全一致**（`proxy_request_logs 10897`、`usage_daily_rollups 418`、`session_log_sync 1097`）。
+- **v4.0.22 首次打开 v20 的库会裁剪日志**：用户真实库有 `proxy_request_logs 16079` / `usage_daily_rollups 379`，而这份库被 v4.0.22 打开（迁移 v20→v24）之后变成 `10897 / 418`（日志最早一条的 `created_at` 也被推后了）。所以差异发生在**迁移/首次打开**那一刻，不是导入导出丢的数据 —— 给用户解释「为什么日志少了几千条」时用这条，别说成导入没导干净。
+
+**留给用户的文件**：`C:\Users\admin\Desktop\cc-switch-my-backup-20261101.sql`（4,323,344 B，就是上面那份导出）。想复现 §14 的按钮流程，就在页面里 设置 → 备份与恢复 → 导入，选这个文件；它是从他们自己的库导出来的，导入是幂等的（会把沙箱恢复成这一刻的状态，并且再存一个 `db_backup_*`）。
+⚠️ 这份 .sql 里**含明文 API token**，别把它发出去或提交进 git。
+
+**沙箱内可回退**：导入前那一份沙箱库被自动备份成 `db_backup_20261101_015834`（在 `.ci-sandbox/io-home` 的备份列表里，页面「备份与恢复」能选回）。
+
+---
+
+## 20. 桌面版旧 UI 的 Windows release 产物（2026-11-05，用户："编译一下ccs我要给我电脑上用"）
+
+§13 那套桌面打包在合并前跑过（debug + MSI），这一节是**合上游 v4.0.22 之后**重跑一遍并真机交给用户，外加一起**必须记下来的事故**。
+
+### 20.1 产物
+
+| 目标 | 命令 | 结果 |
+| --- | --- | --- |
+| 前端 | `pnpm build:legacy:desktop`（先 `rm -rf dist-legacy-desktop`） | `✓ built in 10.97s`；`assets/index-HLFQ5fJu.js` 4,626.87 kB、`assets/index-Bxf3F2jj.css` 91.65 kB |
+| 桌面 release + MSI | `pnpm tauri build --config src-tauri/tauri.legacy.conf.json --bundles msi`（vcvars64 + `RUSTUP_TOOLCHAIN=1.95-x86_64-pc-windows-msvc`，见 `.ci-sandbox/desktop-release-run.ps1`，detached 跑） | **exit 0**，约 6 分钟；WiX 用的是本机缓存 `%LOCALAPPDATA%\tauri\WixTools314`，**这次没走网络**（§13.6 那条 `HTTPS_PROXY` 可以不再设） |
+
+| 产物 | 大小 | sha256 |
+| --- | --- | --- |
+| `src-tauri/target/release/cc-switch.exe` | 47,406,080 B | `90514e95799d67b71e35b842c09551ebe5073a26be25c46b2cd7eab0335787d7` |
+| `src-tauri/target/release/bundle/msi/CC Switch_4.0.22_x64_en-US.msi` | 17,997,824 B | `1834f39b3a304800cd41c880e54024977b5a128fe9616cb7c29eefec444a6e78` |
+
+**嵌入证明**（release 是编译期把 `dist-legacy-desktop` 打进二进制的，只能 grep 二进制 + 真机验）：exe 里 `index-HLFQ5fJu.js`/`index-Bxf3F2jj.css` 各 1 次（就是上面那次 vite 输出的哈希）、`4.0.22` 10 次、`dist-legacy-desktop` 1 次；`api/invoke` 0 次（web shim 没编进桌面版，走真 Tauri IPC，`__TAURI_INTERNALS__` 在页面里可用）。CSS 里那个 `bg-orange-500` 在 exe 里 grep 不到（rust-embed 的 asset 是压缩存的），改在**运行时**验：跑起来后 `document.styleSheets` 扫到 1319 条规则，`.bg-orange-500 { … rgb(249 115 22 …) }` 在 —— §13.7 的修复确实在桌面产物里生效了。
+
+**桌面版和 web 版的两处行为差异**（都是设计如此，不是 bug）：`silveridc` 在 exe 里 0 次、`farion1231` 3 次 —— §15 的链接归属只改 web 构建；`import_config_sql` 出现 2 次是后端命令本身，桌面版的导入/导出走的是 `open_file_dialog`/`save_file_dialog` 文件对话框，不是 §14 那条浏览器上传链路。
+
+### 20.2 ⚠️ 事故：`.ps1` 里的中文注释把下一行代码吃掉了，结果桌面实例开的是**用户真实库**
+
+`.ci-sandbox/launch-desktop.ps1` 最初是 Write 工具落的 **UTF-8 无 BOM** 文件，里面有一行中文注释紧贴着 `$env:CC_SWITCH_TEST_HOME = $home_`。Windows PowerShell 5.1 按 ANSI/GBK 解码这个文件，中文那行的尾字节和换行被拼成一行 —— `Get-Content` 打出来就是证据（注释和赋值同在第 6 行）：
+
+```
+6: # 只设 CC_SWITCH_TEST_HOME：DB 落在 <home>\.cc-switch，~/.claude …$env:CC_SWITCH_TEST_HOME = $home_
+```
+
+于是 **`CC_SWITCH_TEST_HOME` 根本没设上**，`Start-Process` 照样打印 `home=…`（那行用的是 `$home_` 本身），看起来一切正常。后果分两档，都实测到了：
+
+- 早期那一版同时设了 `CC_SWITCH_DATA_DIR`（DB 进沙箱 ✓，日志/备份都落在 `.ci-sandbox/desktop-mydata`），但 `.claude`/`.codex`/`.gemini` 全解析成**真实** `C:\Users\admin\…`；
+- 后来去掉 `CC_SWITCH_DATA_DIR` 只留（被吃掉的）`TEST_HOME`，**DB 也直接开到真实目录上**：01:57:57 和 02:01 两次，把用户真实库 `C:\Users\admin\.cc-switch\cc-switch.db` 从 v20 迁到 v24 并裁剪了日志（11,235,328 B → 5,705,728 B，`proxy_request_logs 16079 → 7107`，`usage_daily_rollups 379 → 459`）。
+
+**已完全回滚**：应用自己在 01:57:57 打开真实库之前生成的 `C:\Users\admin\.cc-switch\backups\db_backup_20261105_015757.db`（11,235,328 B，`user_version=20`，`providers=9`，`logs=16079`）被原样拷回 `cc-switch.db`，恢复后 sha256 `69a869f1df929d6bccec2b76a0c80d0f0190fdcff9013e17703737bdbdfbec64` 与备份逐字节一致；被裁剪那份留档在 `.ci-sandbox/real-db-v24-pruned-20261105.db`。`C:\Users\admin\.claude\settings.json` 全程没被写过（mtime 仍是 2026-10-20 22:49），所以用户装的官方版和它的 live 配置都没受影响。
+
+**教训（已进记忆）**：给 PowerShell 5.1 跑的 `.ps1` 一律**只写 ASCII 注释**（或存成带 BOM 的 UTF-8）；凡是靠环境变量做隔离的启动脚本，**必须让脚本自己把变量值打出来**（现在 `launch-desktop.ps1` 会打印 `testhome=[…]`），并且**启动后用命令探针复验路径**，不能只看它有没有弹窗口。
+
+### 20.3 现在这套是这么跑的（已复验）
+
+1. 沙箱 home：`.ci-sandbox/desktop-play/.cc-switch/cc-switch.db`，种子就是上面那份 `db_backup_20261105_015757.db` 的副本（`.ci-sandbox/desktop-play-seed.db`）—— 所以桌面版里看到的是用户**自己的** 9 个供应商和用量，真实库不参与；
+2. `powershell -File .ci-sandbox\launch-desktop.ps1 -CdpPort <现挑端口>`：只设 `CC_SWITCH_TEST_HOME`（脚本全 ASCII，会自打 `testhome=[…]`）；
+3. 启动后探针实测（CDP 里 invoke）：`get_config_dir{claude|codex|gemini}` 与 `get_claude_code_config_path` **全部返回 `D:\projects\ccs\.ci-sandbox\desktop-play\…`** ✓，`tools/desktop-cdp-check.mjs` **13/13**，截图确认首屏是旧 UI 的「欢迎使用 CC Switch」弹窗；
+4. 跑完之后复查真实库 sha256 仍是 `69a869f1…`、`~/.claude/settings.json` mtime 仍是 10-20 —— 沙箱确实挡住了。
+
+双击入口：`src-tauri/target/release/run-desktop-sandbox.bat`（同样只设 `CC_SWITCH_TEST_HOME`，ASCII）。⚠️ **直接双击 `cc-switch.exe` 用的就是真实 `~/.cc-switch`**，会把用户库单向迁到 v24（老版本二进制之后打不开，§18 那条 `schema.rs:463` 的「数据库版本过新」）。
+
+顺带：§19 那个 14540 无头服务**现在没在跑**（`/api/health` 连不上，`cc-switch-server` 进程为 0），要玩浏览器版就按 §19.2 的 `launch-io.ps1` 重新拉起。
+
+### 20.4 还没拍板/没做的
+
+- **MSI 没装**（也不建议装）：`tauri.legacy.conf.json` 没覆盖 `productName`/`identifier`，产物仍是 `CC Switch` + `com.ccswitch.desktop`，和 `C:\Users\admin\AppData\Local\Programs\CC Switch` 那个正式版同名同标识 —— 就是 §13.6 ③ 那条待决策。同名还有一个副作用：**官方版在跑时启动我们这个 exe，`tauri-plugin-single-instance` 只会把焦点交给官方版，我们的实例直接退出**。
+- `cargo test` 全量依旧没跑；EL9 单二进制、WSL 14515、容器镜像仍是合并前产物（§18.5）。
+
+### 20.5 直接部署到用户真实环境（2026-11-05 11:06，用户："直接部署系统 我试一下cc能切换吗"）
+
+这一节**取代 §20.3 的"现在这套是这么跑的"**：沙箱实例（pid 55628）已停，现在本机跑的是同一个 exe、**故意不做任何隔离**的真实部署。切换动作留给用户自己点，我没有 invoke 过任何 `switch_provider`。
+
+**怎么起的**：`.ci-sandbox/deploy-desktop.ps1 -CdpPort 2192`（新脚本，全 ASCII）。里面**明确没有** `CC_SWITCH_TEST_HOME`/`CC_SWITCH_DATA_DIR`，只留 `NO_PROXY` 和 CDP 端口，并按 §20.2 的教训把两个变量原样打出来：
+
+```
+testhome=[] datadir=[]
+pid=728 exe=D:\projects\ccs\src-tauri\target\release\cc-switch.exe
+```
+
+空值就是"这次真的开真实 home"的证据，不是脚本又把它吃了。
+
+**启动前快照**（TS=`20261105_110606`，都在 gitignore 的 `.ci-sandbox/`，不会进 git）：
+
+| 文件 | 大小 | 说明 |
+| --- | --- | --- |
+| `real-db-pre-deploy-20261105_110606.db` | 11,235,328 B | sha256 `69a869f1…`，与当时真实库**逐字节一致**，`user_version=20`，9 个供应商 |
+| `claude-settings-pre-deploy-20261105_110606.json` | 268 B | 用户手写状态：`CLAUDE_CODE_EFFORT_LEVEL=max`、`ENABLE_TOOL_SEARCH=true`、`autoUpdatesChannel: latest`、`tui: fullscreen`、`model: haiku`，**没有** `ANTHROPIC_BASE_URL` |
+| `claude-json-pre-deploy-20261105_110606.json` | 150,283 B | `~/.claude/.claude.json` |
+
+**启动后探针复验**（CDP 2192，全部在真实 home 上）：`get_claude_code_config_path` → `C:\Users\admin\.claude\settings.json`（沙箱路径不再出现，说明隔离确实是关的）；`get_providers{app:"claude"}` → `Claude Official / 中转 / DeepSeek`；`get_current_provider` → `b0c2ce48-a598-40e2-bc1f-57b7af777ffd`（中转）；`tools/desktop-cdp-check.mjs` **13/13**。窗口起来时是最小化状态，`activate_window(restore)` 后 `362,342 1112×658` 前台；截图 `.ci-sandbox/desktop-real-restore.png`：中转卡片高亮「3 分钟前」，已使用 316445.88 / 剩余 22902524950.22 USD，DeepSeek 卡上「查询失败」—— 那是那个供应商自己的配额接口取不到，和切换链路无关。
+
+**真实库这次是被合法迁移的**（不是事故，用户要求的就是真实环境）：`user_version` 20 → **24**，11,235,328 → 5,705,728 B，`proxy_request_logs 16079 → 7107`、`usage_daily_rollups 379 → 459`（§18 那条 `rollup_and_prune`，30 天窗口）。迁移前应用自己生成了一份 `C:\Users\admin\.cc-switch\backups\db_backup_20261105_110648.db`（11,235,328 B，v20），和上面那份快照同源，所以回退点有两个：
+
+```bash
+cp /c/Users/admin/.cc-switch/backups/db_backup_20261105_110648.db /c/Users/admin/.cc-switch/cc-switch.db   # 或 .ci-sandbox/real-db-pre-deploy-20261105_110606.db
+cp .ci-sandbox/claude-settings-pre-deploy-20261105_110606.json /c/Users/admin/.claude/settings.json
+```
+
+⚠️ 迁移**单向**：现在再启动官方版那个 v4.0.15 二进制会报「数据库版本过新」（`schema.rs:463`），要回官方那条路必须先 `cp` 备份覆盖回去。
+
+**到 11:16 为止 `~/.claude/settings.json` 仍是 sha256 `442e9788…`、mtime 11:02** —— 那次写发生在本次部署（11:06:47）**之前**，不是我这边；用户点切换之后它才会被真的写（`ANTHROPIC_BASE_URL` + token），这也是 §20.5 留那份 268 B 快照的原因。
+
+**单实例**：此刻 `Get-Process cc-switch` 只有 pid 728（Path 指向 `target/release`），官方版没在跑，所以 §20.4 那条"启动只把焦点交给官方版"的坑这次没触发；用户如果先开官方版再开我们这个，看到的会是官方版窗口。
+
+### 20.6 §13.8 那个会话页崩溃：用户真点出来了，按 ①（传输层补字段）修好（2026-11-05 12:20–12:48）
+
+**用户点了什么**（真实环境日志 `~/.cc-switch/logs/cc-switch.log` 的时间线）：
+
+| 时间 | 日志 | 含义 |
+| --- | --- | --- |
+| 12:18:30 / 12:18:31 | `[SWITCH] claude 直连：b0c2ce48(中转) → 515a6a2b(Claude Official)，写客户端配置` → 又切回来，两次都 `完成` | **切换本身是好的**，这就是用户问的那件事 |
+| 12:18:33 | `[MODE] claude 进入路由模式失败…: 原子替换失败: …settings.json.tmp.728.…: Unable to remove the file to be replaced. (os error 1175)` | 头一次开路由失败，12:18:34 重试成功（`[MODE] claude enter：直连 → 路由`）；那份 `settings.json` 没被换坏，之后一切正常。**没动代码**，只是记一笔 |
+| 12:20:04–12:28:27 | 12 次 `[frontend] react.error_boundary`（12:20×5、12:21×1、12:23×3、12:28×3），`TypeError: Cannot read properties of undefined (reading 'slice')` | 就是 §13.8 那条崩溃；用户连着试了四轮，每次点「重新加载界面」再点进会话页都会再来一组 |
+
+我在同一个实例（CDP 2192）上点「会话管理」复现，`console.error` 抓到同一条异常，页面变成用户发来的那张错误边界截图。
+
+**根因**（§13.8 早就定位过，这次是第二次实测）：`src-tauri/src/session_manager/model.rs:62` 手写的 `Serialize` 在 `blocks` 非空时**不下发 `content`**；旧前端 `src-legacy/components/sessions/SessionManagerPage.tsx:394` 把它交给 `src-legacy/components/sessions/utils.ts:230` 的 `content.slice(0, maxLength)` → 炸。v4 新前端 `src/components/sessions/reader/turns.ts:169-170` 是 blocks 优先、`content` 只兜底，所以只有旧前端受害。
+
+**改法 = §13.8 的 ①**（四处，`src-legacy/` 与后端**零改动**）：
+
+| 文件 | 改动 |
+| --- | --- |
+| `web/transport/result-adapt.ts`（新） | 把原来只在 web shim 里的 `RESULT_ADAPT` 抽出来共用，加 `get_session_messages`：`blocks` 非空又没有 `content` 时，按 `project_content` 的规则在 TS 侧补一份纯文本（`text` / `[Tool: rawName] title` / `tool_result.preview` / `[Image: mediaType size]` / `event.text`，thinking 与 step 不进，空段跳过，`\n\n` 连接） |
+| `web/transport/desktop-core.ts`（新） | 桌面 legacy 构建的 `@tauri-apps/api/core` 替身：invoke 仍走上游 `core.invoke`，只把结果过同一张表。⚠️ **必须把 core 的导出全量转发** —— `@tauri-apps/plugin-updater` 也 `import { Resource, Channel, invoke } from '@tauri-apps/api/core'`，这条 alias 对插件包同样生效，第一次构建就是被 rollup 报 `"Resource" is not exported` 挡住的 |
+| `web/transport/core.ts` | 删掉本地那张表，改成 import `adaptInvokeResult` |
+| `vite.legacy.config.ts` | 非 web mode 也加一条 alias `^@tauri-apps/api/core$` → `desktop-core.ts`（web mode 仍走原来那 9 个 shim） |
+
+**验证**（都在真实环境，不是沙箱）：
+
+- 产物：`target/release/cc-switch.exe` 47,406,080 B，sha256 `c476b97ebcbc143d496e48a58d2220c0f7d556cb636209bf2cbd7cc1f599ec04`（取代 §20.1 的 `90514e95…`）。内嵌资源换成了 `index-DXa0Hciu.js` + `index-B-iDIF_0.js`（旧 `index-HLFQ5fJu.js` 在 exe 里 0 次），CSS 仍是 §13.7 修好的 `index-Bxf3F2jj.css`。⚠️ **只改前端时 cargo 不会因为 `dist-legacy-desktop` 变了就重跑 `generate_context!`**，这次靠 `touch src-tauri/src/lib.rs` 强制重编（`.ci-sandbox/desktop-fix-run.ps1` 里就有这一行，别再忘）。
+- 重启后路由模式自己接上了：`[MODE] claude attach：路由 → 路由 … 客户端配置已重写`，代理仍是 `127.0.0.1:52778`，12:48:14 就有一条真实请求 `https://ai-api.sliveridc1.cn/v1/messages (model=gpt-6.1-sol)` 走通 —— 用户那时正在终端里用 Claude Code，没被打断。
+- 会话页：14 条会话正常列出，点开那条 194 条消息的会话，正文 / 时间戳 / 工具行都在，`console.error` 一条没有（截图 `.ci-sandbox/desktop-real-sessions-fixed.png`）。
+- `tools/desktop-cdp-check.mjs 2194` **13/13**。
+- 现在跑的是 pid 53868（§20.5 那个 pid 728 已停）。
+- 用户在修好的这个实例上又自己用了一轮：12:50:43 / 12:50:45 / 12:51:08 三条真实请求经代理转发到 `https://ai-api.sliveridc1.cn/v1/messages (model=gpt-6.1-sol)`，12:51:14 他自己把路由关回直连（`[MODE] claude exit：路由 → 直连 … 写回直连供应商 b0c2ce48…`，代理 `SRV-002 已完全停止`）。到 12:59 为止 `error_boundary` 出现 0 次（今日 13 条 ERROR 全部在 12:28:27 及之前）。
+
+**顺带一条，免得下次当成新 bug 查**：重启后的 `~/.claude/settings.json` 与重启前 diff 只有 4 处 —— `"model": "opus"` 那行没了、三个 `*_MODEL_NAME` 从 `gpt-6-sol`/`deepseek-flash`/`gpt-6.1-terra` 变成 `gpt-6.1-sol`。这是**用户自己在 12:19–12:41 之间改了 中转 那张卡的模型映射**，重启时 ATTACH 把卡片内容重写回文件，不是我改的。
+
+**还没做**：~~`dist-legacy`（浏览器版页面）、Windows 无头 `cc-switch-server.exe`~~ —— 这两个 **13:05–13:34 已重编并复验，见 §20.7**；EL9 单二进制、容器镜像**仍是修复前的前端**。MSI 也没重打（§20.4 那条待决策没变），但**现在多了一个 Inno Setup 安装包**，同节。
+
+### 20.7 浏览器版重编 + Inno Setup 安装包（2026-11-05 13:05–13:34，用户："浏览器版你改一下吧 然后你可不可以拿 innosetup 做一个安装包"）
+
+**浏览器版 = `dist-legacy` + 内嵌它的无头 exe**，两个都换成了带 §20.6 修复的前端：
+
+| 步骤 | 结果 |
+| --- | --- |
+| `pnpm build:legacy:web` | `✓ built in 9.19s`；入口从修复前的 `index-CqlT7Op1.js`（10-25 那次）换成 **`index-tuveGerf.js` 4,615.48 kB**（sha256 `88c0c4be…`），CSS 仍是 §13.7 修好的 `index-Bxf3F2jj.css` |
+| `tools/rust.cmd build --release --no-default-features --features headless --bin cc-switch-server` | detached 跑（`.ci-sandbox/build-release-io.ps1`），`Finished release in 4m 39s`；产物 **45,648,896 B**，sha256 `9ff95c032fb82491fbd02ee49b2dd24b64c005726cef2a141da781cc249da125` |
+| 嵌入证明（rust-embed 是编译期内嵌，只能 grep 二进制） | exe 里 `index-tuveGerf.js` 2 次、`index-Bxf3F2jj.css` 2 次、**修复前的 `index-CqlT7Op1.js` 0 次** —— 换进去了。桌面版 `cc-switch.exe` 没被这次构建碰过（sha256 仍是 `c476b97e…`，§20.6 那个） |
+
+`dist-legacy` 换了文件名就足以让 cargo 重跑 `generate_context`/rust-embed，**不需要**像 §20.6 那样 `touch lib.rs`（那是 `generate_context!` 的坑，不是 rust-embed 的）。
+
+**起服务验证**：`.ci-sandbox/launch-browser-play.ps1`（新，全 ASCII）。它**故意不设 `CC_SWITCH_TEST_HOME`**，只给 `--data-dir D:\projects\ccs\.ci-sandbox\browser-play`：会话扫描读的是**真实** `~/.claude` 等目录，而库/日志/备份留在沙箱。脚本按 §20.2 的教训自打 `testhome=[] datadir=[…]`。
+
+- pid 53604，`/api/health` → `200 {"app":"cc-switch","version":"4.0.22","authRequired":false}`；启动日志 `[SESSION-SYNC] 导入 4731 行 / 扫描 31 个文件`（真实转录文件）。
+- ⚠️ **真实 `~/.claude/settings.json` 全程没被这个服务写过**：13:12 启动前后都是 mtime `12:51:14`、901 B、sha256 前缀 `49be920c`（那次写是 §20.6 里用户自己关路由）。沙箱库是空的 → 没有路由状态可 ATTACH，这正是选「空 `--data-dir` + 不设 TEST_HOME」的原因。
+
+**给 `tools/browser-e2e.mjs` 加了 3 条会话页断言**（16 → 19 条，**19/19**）：
+
+- 视图切换不靠语言：旧前端的「会话管理」图标只在主视图的图标条里（`App.tsx:1691`，而 e2e 前几步停在设置页），所以断言先用旧前端自己的持久化键 `cc-switch-last-view=sessions`（`App.tsx:150`）重载，再在会话页里点第一行（`SessionItem` 那个 `button.min-w-0`），断 `[data-index]` 消息行数 >0、每行 `textContent` 非空、且没有 `[role="alert"]`（错误边界 `FrontendErrorBoundary.tsx:37`）。第一版直接 `button:has(svg.lucide-history)` 找不到入口，就是这个原因。
+- 实测：`{"sessions":34,"rendered":10,"empty":0,"boundary":null,"first":"User11/5/2026, 12:24:11 PM帮我按照RegisterCode的方式修改我的邮件模板"}`，截图 `.ci-sandbox/browser-sessions-fixed.png`。
+- **证明这三条不是空断言**：直接 POST `/api/invoke get_session_messages` 拿到 317 条消息，`keys = role,ts,id,turnId,blocks`、**`content` 317/317 全部 ABSENT** —— 后端契约没变（§13.8 那条省流量的省略还在），页面却渲染出来了，只能是传输层补的那份 `content` 在起作用。
+
+**Inno Setup 安装包**（本机 Inno 6.7.3，per-user 装在 `%LOCALAPPDATA%\Programs\Inno Setup 6`，无需管理员工具）：
+
+| 文件 | 说明 |
+| --- | --- |
+| `installer/legacy-desktop.iss` | 脚本。**全 ASCII**（Inno 把无 BOM 的 UTF-8 脚本按系统 ANSI 解，中文会把向导文字弄花，和 §20.2 的 `.ps1` 是同一类坑） |
+| `installer/legacy-ui-readme.txt` | 装前信息页（`InfoBeforeFile`）。**必须带 UTF-8 BOM**，否则同样按 ANSI 读出乱码。内容讲清了：数据目录和官方 CC Switch 共用、schema 升级单向（`schema.rs:463` 的「数据库版本过新」）、备份位置、点切换是真的写 `~/.claude` |
+| `tools/inno.cmd` | 一条命令打完：从 `src-tauri/tauri.conf.json` 读版本号（`/DAppVersion=`），找 ISCC（per-user → Program Files → PATH），输出到 `installer/Output/`（已 gitignore） |
+| `.gitignore` | `+ installer/Output/` |
+
+产物：`installer/Output/cc-switch-legacy-4.0.22-x64-setup.exe` **14,145,138 B**，sha256 `71091f850422df91c7ba1cc7ccca2ee9d260f4192f8e095336c974beb8241e59`（`Successful compile (9.360 s)`，lzma2/max）。比 §20.1 那个 MSI（17,997,824 B）**小 3,852,686 B**。
+
+**为什么不撞官方那份**（§13.6 ③ / §20.4 待决策在安装包这一侧绕开了）：`AppId={{0FFB04C8-EE3B-41C5-AC4A-AFF7C5A92A4D}`（自定 GUID，不是官方升级码）、显示名 `CC Switch Legacy UI`、默认目录 `{autopf}\cc-switch-legacy`、`PrivilegesRequired=lowest` + `OverridesAllowed=dialog`（应用本身是 per-user 的，不该为了写 Program Files 弹 UAC）。⚠️ **运行时标识没改**：`tauri.legacy.conf.json` 仍继承 `com.ccswitch.desktop`，所以 `~/.cc-switch`、`%LOCALAPPDATA%\com.ccswitch.desktop`（WebView2 那份）和 `tauri-plugin-single-instance` 都还是和官方版共用的 —— 那条「官方版在跑时我们这个实例直接退出」的风险**没被安装包解决**。
+
+**真机验过装和卸**（装到 `.ci-sandbox\inno-test`，验完立刻卸，机器上没留东西）：
+
+- `/VERYSILENT /SUPPRESSMSGBOXES /DIR=…`：目录里 `cc-switch.exe` 47,406,080 B、sha256 `c476b97e…` **与源文件逐字节一致**；时间戳保留成源文件的 12:47。
+- 开始菜单 `CC Switch Legacy UI.lnk` 生成 ✓；HKCU 卸载项 `DisplayName=CC Switch Legacy UI`、`DisplayVersion=4.0.22`、`Publisher=silveridc` ✓。
+- `unins000.exe /VERYSILENT` 之后：目录、快捷方式、注册表项**全部消失**（`dir exists=False / lnk exists=False / registry leftovers=[]`）。
+- 安装过程**没有启动应用**（`[Run]` 那条是 `skipifsilent`），所以没碰真实库。
+- WebView2 检查在 `InitializeSetup`，缺失时提示但不阻断（`Result := True`）。本机装了 Edge，没触发；顺带说明：Inno 6.7.3 的 Pascal Script **没有 `mbWarning`**（实测可用的是 `mbError`/`mbInformation`/`mbConfirmation`/`mbCriticalError`），用错会在编译期 `Unknown identifier`。
+- 另一个编译期坑：`{cm:LaunchProgram,{#StringChange({#AppName},…)}}` 里再嵌 `{#…}` 会报 `Expression expected but opening brace` —— ISPP 表达式内部引用宏要用**裸名** `AppName`。
+
+**还没做**：EL9 单二进制、容器镜像、WSL 14515 服务仍是修复前产物；MSI 没重打；安装包没入库（只入库脚本与说明）；`cargo test` 全量依旧没跑；§11 / §14.5 / §15.4-15.5 / headless clippy 那些待办不变。14552 这个验证用的无头服务**还开着**（pid 53604，`.ci-sandbox/browser-play` 那份空库），不用了就 `Stop-Process -Id 53604`。
+
+
+
