@@ -93,3 +93,23 @@ pub use workspace::*;
 // 无头构建：桌面专属命令的替身（与上面各模块里 #[cfg(feature = "desktop")] 的实现二选一）
 #[cfg(not(feature = "desktop"))]
 pub use crate::headless::stubs::*;
+
+/// 同步命令在 Tauri 2 里跑在主线程上：要等数据库连接锁（或等切换锁，切换时要拿库）的
+/// 命令放到阻塞线程池里跑，否则会话同步占着连接锁时整个窗口和托盘都跟着卡住。
+/// 同 `usage.rs` 的 `run_db_query`，只是闭包拿 `AppState`（服务层大多收它）、错误是 `String`。
+async fn run_db_task<T, F>(
+    state: &tauri::State<'_, crate::store::AppState>,
+    task: F,
+) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&crate::store::AppState) -> Result<T, String> + Send + 'static,
+{
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || task(&state))
+        .await
+        .map_err(|error| format!("数据库任务失败: {error}"))?
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) use misc::{login_shell_path, merge_path_segments, CommandDeadline};

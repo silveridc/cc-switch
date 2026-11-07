@@ -35,6 +35,8 @@ use crate::SkillService;
 use std::sync::Arc;
 #[cfg(feature = "desktop")]
 use tauri::tray::TrayIconBuilder;
+#[cfg(feature = "desktop")]
+use tauri::Emitter;
 use tauri::Manager;
 #[cfg(feature = "desktop")]
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -762,6 +764,12 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         if let Some((icon, template)) = tray::base_tray_icon(app.handle()) {
             tray_builder = tray_builder.icon(icon).icon_as_template(template);
         }
+        // 轻量面板环境写不了默认的 XDG runtime 目录，托盘图标改落到应用缓存。
+        #[cfg(target_os = "linux")]
+        {
+            tray_builder =
+                tray_builder.temp_dir_path(app.path().app_cache_dir()?.join("tray-icon"));
+        }
 
         let _tray = tray_builder.build(app)?;
         #[cfg(target_os = "windows")]
@@ -892,23 +900,23 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
             state.inner().clone(),
         );
 
-        // Periodic backup check (on startup)
-        if let Err(e) = state.db.periodic_backup_if_needed() {
-            log::warn!("Periodic backup failed on startup: {e}");
-        }
-
-        // Periodic maintenance timer: run once per day while the app is running
+        // 备份和裁剪会扫整库，不能占着这条启动任务；第一次 tick 立刻跑，之后每天一次。
         let db_for_timer = state.db.clone();
         tauri::async_runtime::spawn(async move {
             const PERIODIC_MAINTENANCE_INTERVAL_SECS: u64 = 24 * 60 * 60;
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(
                 PERIODIC_MAINTENANCE_INTERVAL_SECS,
             ));
-            interval.tick().await; // skip immediate first tick (already checked above)
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 interval.tick().await;
-                if let Err(e) = db_for_timer.periodic_backup_if_needed() {
-                    log::warn!("Periodic maintenance timer failed: {e}");
+                let db = db_for_timer.clone();
+                match tauri::async_runtime::spawn_blocking(move || db.periodic_backup_if_needed())
+                    .await
+                {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => log::warn!("Periodic maintenance failed: {e}"),
+                    Err(e) => log::warn!("Periodic maintenance task failed: {e}"),
                 }
             }
         });
@@ -969,24 +977,6 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
         });
     });
 
-    // Linux: 禁用 WebKitGTK 硬件加速，防止 EGL 初始化失败导致白屏
-    #[cfg(all(target_os = "linux", feature = "desktop"))]
-    {
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.with_webview(|webview| {
-                use webkit2gtk::{HardwareAccelerationPolicy, SettingsExt, WebViewExt};
-                let wk_webview = webview.inner();
-                if let Some(settings) = WebViewExt::settings(&wk_webview) {
-                    SettingsExt::set_hardware_acceleration_policy(
-                        &settings,
-                        HardwareAccelerationPolicy::Never,
-                    );
-                    log::info!("已禁用 WebKitGTK 硬件加速");
-                }
-            });
-        }
-    }
-
     // 静默启动：根据设置决定是否显示主窗口
     #[cfg(feature = "desktop")]
     {
@@ -1011,7 +1001,9 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
                 }
             } else if settings.silent_startup {
                 // 静默启动模式：保持窗口隐藏
-                let _ = window.hide();
+                if window.hide().is_ok() {
+                    let _ = window.emit("main-window-visibility-changed", ());
+                }
                 #[cfg(target_os = "windows")]
                 let _ = window.set_skip_taskbar(true);
                 #[cfg(target_os = "macos")]
@@ -1020,7 +1012,9 @@ pub fn setup_common(app: &mut compat::App) -> Result<(), Box<dyn std::error::Err
             } else {
                 // 正常启动模式：显示窗口
                 #[cfg(not(target_os = "windows"))]
-                let _ = window.show();
+                if window.show().is_ok() {
+                    let _ = window.emit("main-window-visibility-changed", ());
+                }
                 #[cfg(target_os = "windows")]
                 log::info!("正常启动模式：等待主页面加载完成后显示主窗口");
                 #[cfg(not(target_os = "windows"))]

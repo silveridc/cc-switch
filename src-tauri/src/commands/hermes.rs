@@ -6,6 +6,7 @@ use tauri::State;
 #[cfg(feature = "desktop")]
 use tauri_plugin_opener::OpenerExt;
 
+use super::run_db_task;
 use crate::hermes_config;
 use crate::store::AppState;
 
@@ -24,9 +25,14 @@ const HERMES_WEB_OFFLINE_ERROR: &str = "hermes_web_offline";
 /// Hermes uses additive mode — users may already have providers
 /// configured in config.yaml.
 #[tauri::command]
-pub fn import_hermes_providers_from_live(state: State<'_, AppState>) -> Result<usize, String> {
-    crate::services::provider::import_hermes_providers_from_live(state.inner())
-        .map_err(|e| e.to_string())
+pub async fn import_hermes_providers_from_live(
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    run_db_task(&state, |state| {
+        crate::services::provider::import_hermes_providers_from_live(state)
+            .map_err(|e| e.to_string())
+    })
+    .await
 }
 
 /// Get provider names in the Hermes live config.
