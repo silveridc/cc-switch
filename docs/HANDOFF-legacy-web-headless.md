@@ -3,7 +3,7 @@
 > 写给下一位接手的 AI/工程师。读完这一份就能接着干，不需要翻历史对话。
 > 所有"已验证"的结论都标了复现命令；标"未验证/推断"的不要当事实用。
 
-**当前状态（2026-10-21 收尾；2026-10-22 追加 §11 只读评审 + §12 本地干净克隆实测与新工作流 + §13 桌面版旧 UI；2026-10-24 追加 §13.9 无头二进制重编与 CLI 侧复验；2026-10-25 追加 §13.10 EL9 产物重编 + §13.11 本机 WSL 实部署 + §14 浏览器导入导出 + §15 链接归属 + §16 格式化与 EL9 二次重编部署；2026-10-30 追加 §17 上游盘点 + §18 合上游 v4.0.22；2026-11-01 追加 §19 本机 release 单二进制试玩；2026-11-05 追加 §20 桌面版 release 产物 + 一起沙箱没挡住真实库的事故 + §20.5 直接部署真实环境 + §20.6 会话页崩溃按 §13.8 ① 修好 + §20.7 浏览器版重编与 Inno 安装包）**：
+**当前状态（2026-10-21 收尾；2026-10-22 追加 §11 只读评审 + §12 本地干净克隆实测与新工作流 + §13 桌面版旧 UI；2026-10-24 追加 §13.9 无头二进制重编与 CLI 侧复验；2026-10-25 追加 §13.10 EL9 产物重编 + §13.11 本机 WSL 实部署 + §14 浏览器导入导出 + §15 链接归属 + §16 格式化与 EL9 二次重编部署；2026-10-30 追加 §17 上游盘点 + §18 合上游 v4.0.22；2026-11-01 追加 §19 本机 release 单二进制试玩；2026-11-05 追加 §20 桌面版 release 产物 + 一起沙箱没挡住真实库的事故 + §20.5 直接部署真实环境 + §20.6 会话页崩溃按 §13.8 ① 修好 + §20.7 浏览器版重编与 Inno 安装包 + §21 第三次合上游 v4.0.23–v4.0.26）**：
 - 旧前端已在真浏览器里跑通：E2E **16/16**（`stream_check.rs:48` 改动后重编二进制、重启服务又跑了两遍，§3.5）。
 - Rust 全量单测 **3763 通过 / 0 失败 / 11 ignored**（要带 `NO_PROXY=127.0.0.1,localhost`，之前那两个"失败"
   是本机 Windows 系统代理造成的假失败，根因与对照实验见 §3.5 备注）。
@@ -54,6 +54,10 @@
 > `tools/browser-e2e.mjs` 加了 3 条会话页断言，**19/19**），并新增一个 **Inno Setup 安装包**
 > `installer/Output/cc-switch-legacy-4.0.22-x64-setup.exe`（13.5 MB，`71091f85…`，AppId/显示名/目录都和官方版不同，
 > 装+卸都在本机真验过）—— 细节 §20.7。EL9 产物与容器镜像仍是修复前的。
+> **2026-11-07 第三次合上游**（`91a76cfd` → `66e4362b`，121 提交 / 4 个 release）：冲突只 4 个文件，但
+> **`setup.rs` 那类抽取式重构会让 merge 静默失明**，启动改动是手工搬的；两端 `cargo check` 0 warning、
+> `typecheck:legacy` 过、`src-legacy` 仍与 v3.20.4 逐字节一致、`browser-e2e` **19/19**（浏览器页面与无头 exe 已重编）。
+> 桌面 exe / Inno 包 / EL9 / 容器 / WSL 14515 还是旧产物 —— 细节 §21。
 > §19 那个 14540 无头服务此刻**没在跑**。
 
 ---
@@ -1887,3 +1891,60 @@ cp .ci-sandbox/claude-settings-pre-deploy-20261105_110606.json /c/Users/admin/.c
 
 
 
+
+## 21. 第三次合上游：v4.0.23–v4.0.26（2026-11-07，用户："pull上游 改一下 在push回去"）
+
+上游从 `91a76cfd` 走到 `66e4362b`：**121 个提交、388 个文件、+29,063/−4,022**，跨 v4.0.23 / v4.0.24 / v4.0.25 / v4.0.26 四个 tag。分支 `zhaoyj7/merge-upstream-4.0.22-20261030` 继续用，合并提交 `83fac328`。
+
+**fetch 仍然只能走代理**：直连 `https://github.com/farion1231/cc-switch.git` 是 `curl 28 / Recv failure: Connection was reset`；一次性 `git -c http.proxy=http://127.0.0.1:7890 fetch …`。端口这次是 **7890**（§18 那会儿是 7891），依旧是从 `HKCU\…\Internet Settings` 现读的，**没有写进任何 git config**。origin 也一样，`git ls-remote origin` 直连同样被 reset，推送用同样的临时参数。
+
+### 21.1 冲突：4 个 git 能看见的 + 1 个 git 看不见的
+
+| 文件 | 两边各要什么 | 怎么解 |
+| --- | --- | --- |
+| `commands/mod.rs` | 我们要无头替身的 `pub use crate::headless::stubs::*`；上游新增 `run_db_task` 和一条非 Windows 的 re-export | 两段都留 |
+| `commands/profile.rs` | 我们把 `apply_profile` 改成同步 + `compat::AppHandle`；上游改成 `async fn`（体内 `profile_mutation(…).await`） | 取上游的 async，但签名仍用 `compat::AppHandle`（无头是 MockRuntime，裸 `tauri::AppHandle` 编不过） |
+| `commands/session_manager.rs` | 我们只给 `tauri_plugin_dialog::DialogExt` 加了 `cfg(feature="desktop")`；上游新增 `InvokeResponseBody, IpcResponse` 与 `tauri::Emitter` | 并集，dialog 那条继续 desktop 门控 |
+| `lib.rs` | 我们把整段启动抽成 `setup::setup_common`；上游往 `run()` 里继续加：`handle_second_instance` 函数、Windows 自动填充插件、Linux webview 插件 | 保留抽取版 `.setup(crate::setup::setup_common)` 与 `app_invoke_handler!()`；**取上游的 `handle_second_instance` 和新插件**，并把 `handle_second_instance`、`disable_windows_general_autofill` 一起按 `feature="desktop"` 门控（`with_webview` 依赖 wry，无头没有） |
+| **`setup.rs`（git 没报冲突）** | 上游仍在 `lib.rs` 里内联启动闭包；我们这份 `setup.rs` 因此**不会收到任何上游启动改动** | 手工把上游的启动差异搬进来，见下 |
+
+这是这次最值得记住的一点：**抽取式重构会让 `git merge` 静默失明**。`lib.rs` 冲突只是「我们的两行 vs 上游的一千多行」，真正要跨文件搬的东西 git 一个字都不会提示。
+
+搬进 `setup.rs` 的上游启动改动（逐条核对过）：
+
+1. Linux 托盘图标 `temp_dir_path(app.path().app_cache_dir()?.join("tray-icon"))` —— 轻量面板环境写不了 XDG runtime 目录；
+2. 周期备份从「启动时同步跑一次 + 定时器再跑」改成**只在定时器里 `spawn_blocking`**，并 `MissedTickBehavior::Skip`（首次 tick 立即执行，等价于原来的启动检查）；
+3. 隐藏/显示主窗口后补发 `main-window-visibility-changed`（前端要用）；
+4. 删掉 `setup.rs` 里内联的 WebKitGTK 硬件加速关闭 —— 上游把它搬进了 `linux-webview-rendering` 插件（`on_webview_ready`），两处都留会重复设置。
+
+### 21.2 另外两处必须跟着改的
+
+- **`command_handler.rs`**：上游新增 7 条命令（`sync_session_index`、`search_session_content`、`clear_session_index`、`start/cancel_mcp_connectivity_checks`、`fetch_exchange_rates`、`fetch_models_dev`）。我们的 handler 是手写清单（上游在 lib.rs 内联），不补就会编译过、运行时 403/未注册 —— 已按 `generate_handler!` 顺序补进 Session manager 段。
+- **`session_manager/cache.rs`**：`TranscriptCache::set_enabled` 只被 `lightweight.rs`（桌面轻量模式）调用，无头构建里变成死代码。按仓库既有写法加 `#[cfg_attr(not(feature = "desktop"), allow(dead_code))]`，没有删实现。
+
+### 21.3 依赖与数据库
+
+- `package.json`：`smol-toml 1.4.2→1.9.1`、新增 `yaml 2.8.1`、`@tauri-apps/cli 2.10.1→2.12.4`；版本 `4.0.22→4.0.26`。已 `pnpm install --frozen-lockfile` 同步（lock 文件没手改，全取上游）。
+- **`SCHEMA_VERSION` 仍是 24** —— 这次合并**不会**再迁用户库（§20.5 那轮已经合法到 v24，回退点还在）。上游新增的会话全文搜索是 FTS5 索引表，按需创建，不改 schema 版本。
+- 上游把 `TranscriptChunk` 改成借用（`&'a [TurnIndex]` / `&'a [SessionMessage]` / `&'a str`）以省掉转录拷贝；JSON 线上形状不变。
+- **会话 wire 契约没变**：合并后 `get_session_messages` 依然只给 `role,ts,id,turnId,blocks`，882 条带 blocks 的消息 **`content` 全部缺省** —— §20.6/§20.7 的传输层适配仍然必需且仍然生效。
+
+### 21.4 门禁与产物
+
+| 项目 | 结果 |
+| --- | --- |
+| `cargo check --no-default-features --features headless --lib --bin cc-switch-server` | **exit 0，0 warning** |
+| `cargo check`（桌面默认特性） | **exit 0，0 warning**，1m55s |
+| `pnpm typecheck:legacy` | 通过 |
+| `src-legacy` 与 `v3.20.4` | `diff -r` **逐字节一致** |
+| `pnpm build:legacy:web` | `✓ built in 15.68s`；入口换成 `index-CCtwPKvq.js` **4,618.85 kB**（sha256 `268f82a6…`），CSS 仍 `index-Bxf3F2jj.css` |
+| 无头 release | `Finished release in 7m 40s`；**48,994,816 B**，sha256 `71eca879859f3a759d57bd07e35f956d7e19d155655b59cf45ac1838d4a4833c`；exe 里 `index-CCtwPKvq.js` 2 次、旧 `index-tuveGerf.js` 0 次 |
+| `tools/browser-e2e.mjs http://127.0.0.1:14553/` | **19/19**；会话页 48 条会话 / 6 行消息 / 无错误边界（上游新增了 kimi、mcode、pi、hermes、grokbuild 等扫描器，会话数从 34 涨到 48） |
+
+验证用的无头服务在 **14553**（pid 61468，`--data-dir .ci-sandbox/browser-play-merge`，不设 `CC_SWITCH_TEST_HOME`，所以读真实会话目录、库在沙箱）；14552 那个已停。
+
+### 21.5 还没做 / 下一次接着来
+
+- **桌面 exe 仍是合并前构建**（`c476b97e…`，pid 53868 还在跑它）。要重编 `--config src-tauri/tauri.legacy.conf.json` 必须先关掉那个实例，否则 `Access is denied`。
+- **Inno 安装包也是旧 exe**：脚本会按 `tauri.conf.json` 自动变成 `4.0.26`，但里面打的还是旧二进制，重编桌面版后需要再跑一次 `tools\inno.cmd`。
+- EL9 单二进制、容器镜像、WSL 14515 服务仍是 10-30 的产物（线上还是 v4.0.15 / DB v23）；`cargo test` 全量没跑；MSI 没重打。
